@@ -1,0 +1,442 @@
+*setpwsh.txt*      Improved pwsh shell experience
+
+Author: Miguel Barro <miguel.barro@live.com> 
+
+Copyright: Copyright (C) 2024 Miguel Barro                   *setpwsh-copyright*
+
+        The VIM LICENSE applies to the files in this package. Like anything
+        else that's free, the associated files are provided *as is* and comes
+        with no warranty of any kind, either expressed or implied.
+        No guarantees of merchantability. No guarantees of suitability for any
+        purpose. By using this plugin, you agree that in no event will the
+        copyright holder be liable for any damages resulting from the use of
+        this software. Use at your own risk!
+
+==============================================================================
+1. Contents                                         *setpwsh*   *setpwsh-contents*
+
+1.  Contents..........................................: |setpwsh-contents|
+2.  Motivation........................................: |setpwsh-motivation|
+3.  Installation......................................: |setpwsh-installation|
+4.  Usage.............................................: |setpwsh-usage|
+        OPTIONS.......................................: |setpwsh-options|
+        COMMANDS......................................: |setpwsh-commands|
+        BANG COMMANDS.................................: |setpwsh-!cmd|
+        INVOKING PS1 SCRIPTS..........................: |setpwsh-ps1|
+        GVIM ON WINDOWS...............................: |setpwsh-gvim-win|
+        SSH SCRIPTS FOR WSL...........................: |setpwsh-ssh|
+5.  Internals.........................................: |setpwsh-internals|
+6.  Issues............................................: |setpwsh-issues|
+
+==============================================================================
+2. Motivation                                               *setpwsh-motivation*
+
+Using powershell as windows 'shell' with the defaults settings (see
+|dos-pwsh|) is a poor experience:
+
+• Commands perfectly valid in terminal cannot be used due to the defective way 
+  windows CRT parses command lines, see:
+    https://devblogs.microsoft.com/oldnewthing/20100917-00/?p=12833
+  Powershell binary uses also this CRT parsing strategy. For example from cmd: >
+    > pwsh -C Get-Item "C:\Program Files"
+<  pwsh.exe will receive as arguments (according with CRT rules): >
+    Arg 0 is <Get-Item>
+    Arg 1 is <C:\Program Files>
+<  which becomes the powershell statement: >
+    > Get-Item C:\Program Files
+<  and fails due to the lack of quotation marks.
+  This issue do not plage pwsh for linux or mac.
+
+  Note: The CRT parsing and the own pwsh parsing strategy (which nowadays
+  admits two flavours, see `$PSNativeCommandArgumentPassing`) is so
+  troublesome that several programs are provided to check what are binaries
+  actually receiving:
+    https://github.com/PowerShell/PowerShell/blob/master/test/tools/TestExe/TestExe.cs
+    https://github.com/Pscx/Pscx/blob/master/Src/EchoArgs/EchoArgs.cs
+  EchoArgs is bundled with pscx module and can be installed doing: >
+    > Install-Module -Name Pscx
+
+• Powershell heavily relies on pipelines to join different cmdlets. It will be
+  very convenient to profit from vim integrated filtering capabilities to feed
+  those pipelines.
+
+This plugin rigs the 'shell', 'shellcmdflag' and other related options to
+workaround the above issues.
+
+==============================================================================
+3. Installation                                           *setpwsh-installation*
+
+An obvious precondition is having powershell core installed. Though, on windows
+it will work with the builtin powershell desktop if core is not available or
+the user enforces it (see |setpwsh-usage|).
+
+In order to install powershell core (pwsh) I advise:
+• Windows. Use `winget`: >
+    > winget install Microsoft.PowerShell
+• Ubuntu. Use `snap`: >
+    $ sudo apt install snapd
+    $ sudo snap install powershell --classic
+• MacOs. Use `brew`: >
+    $ brew install powershell/tap/powershell-lts
+
+For other platforms check:
+https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell
+
+This plugin can be installed using any popular plugin manager (vim-plug,
+Vundle, etc...) but vim plugin integration is extremely easy in later releases
+(|version8.0| introduced package support):
+
+• A |vimball| is distributed by www.vim.org. Installation is as easy as
+  sourcing the vimball file: >
+    :source setpwsh.vba
+<  so is uninstall: >
+    :RmVimball setpwsh.vba
+
+• The github repo can be cloned directly into the |$VIMRUNTIME|/pack directory
+  as explained in |matchit-install|. Though using this approach many useless
+  files will be installed too.
+
+• Use |getscript| plugin to automatically download an update it. Update the
+  local |$VIMRUNTIME|/GetLatest/GetLatestVimScripts.dat adding a line
+  associated with this plugin.
+
+Once installed the |:SetPwsh| command must be used to modify the 'shell'
+options. The most common place to do it is the |.vimrc| file. Add the
+following lines: >
+
+    packadd setpwsh
+    SetPwsh
+
+If wsl is available in your windows set up you can add: >
+
+    packadd setpwsh
+    SetPwsh SshFromWsl FtpFromWsl
+
+and |netrw| will use wsl ssh tools instead of local windows ones (if
+available) see |setpwsh-ssh|.
+
+==============================================================================
+4. Usage                                                         *setpwsh-usage*
+
+OPTIONS                                                        *setpwsh-options* 
+
+  *g:setpwsh_enabled*        If 1 automatically sets up powershell/pwsh when the
+                           plugin is loaded
+                           By setting this variable in the |.vimrc|: >
+
+                               let g:setpwsh_enabled = 1
+
+<                           The plugin will be loaded at startup but powershell
+                           will not be available yet from |.vimrc|
+                           instructions. If we want it to be available already
+                           for |.vimrc| it must be manually loaded doing: >
+
+                               packadd setpwsh
+                               SetPwsh
+
+The following options are only meaningful in windows:
+
+  *g:setpwsh_shell*          Chooses between pwsh (core) or powershell
+                           (desktop). Defaults pwsh.
+
+  *g:setpwsh_ftp_from_wsl*   If 1 sets up netrw global options to rig wsl ftp.
+
+  *g:setpwsh_ssh_from_wsl*   If 1 sets up netrw global options to rig wsl ssh &
+                           scp. 
+
+  *g:setpwsh_enable_test*    if 1 performs testing for privileges. Defaults 0.
+                           May slows down startup.
+
+COMMANDS                                           *setpwsh-commands* *:SetPwsh*
+
+There is only a single command: >
+
+    :SetPwsh [Desktop | FtpFromWsl | SshFromWsl]
+
+This command will modify |'shell'| and related options to use the powershell.
+It admits the following argument flags that are only meaningful in windows:
+
+• Desktop     Use powershell desktop instead of powershell core.
+              Note: if powershell core is not installed the command will
+              fallback to powershell desktop.
+
+• FtpFromWsl  Sets up netrw global options to rig wsl ftp.
+• SshFromWsl  Sets up netrw global options to rig wsl ssh & scp.
+
+BANG COMMANDS                                                     *setpwsh-!cmd*
+
+Once |'shell'| and related options are modified using the |g:setpwsh_enabled|
+options or the |:SetPwsh| command, the |:!cmd| commands will respond to
+powershell as will on a terminal. For example: >
+
+    :!Get-Item "C:\Program Files"
+
+will work properly.
+
+Note: Vim will prevent some special chars to be forwarded to any shell. For
+example `%` or `#` (see all of them in |cmdline-special|). 
+
+We can read powershell pipeline output into the current buffer using |:read!|.
+For example: >
+
+    :read !1..5 | \% { [char]($_+96) }
+
+will fill the buffer with: >
+
+ 1  a
+ 2  b
+ 3  c
+ 4  d
+ 5  e
+
+we can use a |filter| command to modify the buffer. The plugin allows
+creating powershell filters where the buffer input is translated into a
+powershell pipeline input. The `$_`automatic variable will match each input
+line. For example in the above buffer doing: >
+
+    :1,5!"-->$_<--"
+
+will turn the buffer into: >
+ 1  -->a<--
+ 2  -->b<--
+ 3  -->c<--
+ 2  -->d<--
+ 5  -->e<--
+
+if we do not want to filter the buffer but running a powershell pipeline with
+it as input we can use |:write_c|. For example: >
+
+    :1,5w !"-->$_<--"
+
+will execute the same commands without modifying the buffer.
+
+The same applies to the |system()| function. For example: >
+
+    :echo system('1..5 | % { [char]($_+96) }')
+
+will show: >
+
+ a
+ b
+ c
+ d
+ e
+
+Here we do not need to escape `%` because |cmdline-special|are not enforced by
+vim.
+
+|backtick-expansion| also relies on powershell. We can for example use
+powershell filter to feed the |:args| command: >
+
+    :args `gci -Path $Env:VIMRUNTIME -R -Filter usr_2?.txt \| select -ExpandProperty FullName`
+
+Note that on backtick expansion the pipes (|) must be escaped or otherwise
+they will be interpret in the vim sense (as statement split).
+
+INVOKING PS1 SCRIPTS                                               *setpwsh-ps1*
+
+It is possible to call powershell scripts or use them as filters. For example
+in order to use this script as filter: >
+
+    # filter.ps1
+    process { "-->$_<--" }
+
+plainly do (gVim on windows is an exception see |setpwsh-gvim-win|): >
+    :<,>!./filter.ps1
+
+GVIM ON WINDOWS                                               *setpwsh-gvim-win*
+
+Gvim on windows has a different with all other vim flavours, it uses the shell
+through pipe redirection instead of temporary files.
+
+It is possible to use powershell's automatic variable `$input` to feed data
+into the powershell interactively. For example: >
+
+    :read !$input | \% { "Entering $_" }
+
+will wait for user input. |<CR>| will be interpreted as new pipe elements and
+the EOF character (Ctrl-D) must be introduced to end the pipeline. For example
+entering `a<CR>b<CR>c<C-D>` will yield >
+
+    Entering a
+    Entering b
+    Entering c
+
+In |setpwsh-ps1| was mentioned that gVim for windows was an exception on using
+powershell scripts as filter. The reason is consequence of using shell
+redirection and how powershell scripts work. We are force to hint that the
+script expects input by doing: >
+
+    :<,>!$input | ./filter.ps1
+
+instead of: >
+
+    :<,>!./filter.ps1
+
+Note that the expression using `$input` works on all vim flavours and can be
+safely used in vim scripts.
+
+SSH SCRIPTS FOR WSL                                                *setpwsh-ssh*
+
+Vim includes a popular networking plugin |netrw| which allows to edit files
+over a network in a transparent fashion. The most usual protocols are ssh and
+ftp. Unfortunately the windows operative system default clients for those
+protocols provide a poor vim experience.
+
+If windows has WSL2 installed is possible to set up |netrw| to use the linux
+clients that provide a more acceptable experience.
+
+• Windows 10 provides an OpenSSH fork:
+        https://github.com/PowerShell/openssh-portable
+  but unfortunately not all features of the linux version are available.
+  One of the most interesting features is oportunistic multiplexing (see
+  |netrw-p14| for setup details).
+  When |netrw| was developed raise a ssh connections was fast. Thus, most
+  programs and plugins did not keep a session open but created a specific
+  session for each operation. Nowadays security is enforced and session
+  handshakes are very expensive introducing an undesired latency on the plugin
+  operation.
+  The oportunistic multiplexing allows new sessions to profit from an open
+  session handshake removing that latency.
+  
+  This feature is enabled using |:SetPwsh| with the `SshFromWsl` flag.
+
+  There is an implementation pitfall: interaction with the ssh client is
+  disabled on gvim for windows (not in the other vim flavours). That means
+  that no passwords can be passed to the client. Nevertheless, netrw plugin
+  discourages the use of ssh passwords because they are not cached (as ftp
+  ones) but would be prompted for each operation. A procedure to avoid them is
+  explained here: |netrw-ssh-hack|.
+
+• Windows ftp client is deprecated (only works in active mode). Though windows
+  offers a shell extension able to cope with ftp in passive mode. In this case
+  using WSL2 provides an updated ftp implementation. Passive mode will be
+  enforced by default. Note that for most public ftps the default account is
+  username=anonymous and password='' (not empty).
+
+==============================================================================
+5. Internals                                                 *setpwsh-internals*
+
+The |'shellcmdflag'| option cannot directly call powershell on windows due to
+the CRT parsing issue explained in |setpwsh-motivation|. I was convinced the
+only possible workaround was following the same strategy that microsoft
+follow: using the `-EncodedCommand` option to pass commands encoded in
+`base64`. `base64` was design to avoid escaping issues as the CRT parsing
+issue.
+
+Unfortunately that meant adding new options and `base64` support in vim
+itself.  The `base64` support in vim was for a while in the roadmap (see
+|todo.txt|) but the introduction of |Blobs| support allows vim to solve the
+same issues more efficiently.
+
+An easier workaround appeared out of Serendipity. In powershell is possible to
+query the actual commandline for the current process using
+`[System.Environment]::CommandLine` and in powershell core the Cmdlet
+`Get-Process` provides this info for any process (if the user is privileged
+enough). In order to use this strategy the |'shellcmdflag'| must call a script
+that will then query its own commandline ignoring the arguments provided by
+the CRT parsing.
+
+Note that the powershell script execution policy must be bypassed. The actual
+reason is that the scripts are likely to be downloaded from the internet and
+any other policy like `RemoteSigned` will prevent them from been executed.
+
+On mac/linux this strategy is not neccessary (no CRT parsing issue) but
+scripts are employed too to allow powershell pipeline integration with vim
+filtering. The basic idea is detect `$_` out of any braced code and then
+introduced a `ForEach-Object` Cmdlet to process it: >
+
+   <prolog> | ForEach-Object { <commands containing $_> } <epilog>
+
+Here `prolog` is used to setup and feed the pipeline. In vim files are used
+for filtering and the `prolog` will use the Cmdlet *Get-Content*. On gVim
+pipes are used and the `prolog` will use the `$input` automatic variable to
+retrieve the stdin contents to filter. Besides gVim will do some set up as
+changing the powershell rendering style (`$PSStyle.OutputRendering`). This is
+necessary because gVim is not associated to a console and will not be able to
+manage ansi escape sequences (see |AnsiEsc|) that would polute the output.
+
+The `epilog` is used to terminate the pipeline. In vim (where files are used
+for filter redirection) an `Out-File` Cmdlet is used. On gVim where pipes are
+used for redirection `Out-String` Cmdlet will be used to force objects
+(specifically error objects) to be formatted (the `-Stream` option is used to
+prevent aggregation and allow user interaction).
+
+Once the command line is retrieved and `decorated` as explained above it must
+be executed. The ideal way of doing it is using the `Invoke-Expression`
+Cmdlet. Unfortunately this Cmdlet has limitations: it cannot handle the
+`$input` variable.
+
+When a windows process launches another one `stdin` and `stdout` handles are
+inherited by default. This allows the spawn process to read and write to a
+console associated with the parent process. But if a script wants to access
+`stdin` it must use `$input` which works like an enumerator. That means that
+there is no way to `peek` for input.
+
+One may thing that as in any binary trying to read `$input` will block the
+script until input or `EOF` is received, but actually the mere presence of
+`$input` in a script will block the script (even if the $input variable is not
+in the actual execution path).  Powershell parses the scripts beforehand in
+order to decide if blocking is necessary (`$input` is there). But
+`Invoke-Expression` command is only knew at runtime and that is the reason why
+`$input` is ignored there.
+
+Thus, `$input` cannot appear openly in any script to avoid blocking in all
+cases instead of only for filtering. The solution for this cases is avoid the
+`Invoke-Expression` Cmdlet and make a recursive call to powershell. The new
+shell binary will block or not depending on `$input` presence in its command.
+Again CRT parsing issues must be avoided but this time using the
+`-EncodedCommand` strategy is possible.
+
+By introducing $input in a gVim command is possible to trigger user interaction.
+For example: >
+    :$input | Format-Hex
+
+by typing: `Hello<EOF>` we get: >
+
+    Address:  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F ASCII
+    -------- ----------------------------------------------- ----------------
+    00000000 48 00 65 00 6C 00 6C 00 6F 00                   H.e.l.l.o.
+
+where <EOF> depends on the context. For gVim it would be Ctrl-D and for vim in
+windows terminal would be Ctrl-Z,<RETURN>. Each terminal has its own <EOF> key
+combination.
+
+Note that gVim pipe redirection is not an actual tty. The `ssh.ps1` script for
+example internally calls the `ssh` within the wsl2 but we cannot interact with
+it and introduce a password. On vim the `ssh.ps1` allows interaction because
+is redirecting to an actual console.
+
+In |setpwsh-ssh| the motivation of using wsl2 ssh implementation was
+explained. A direct wsl call would fail because the |netrw| plugin creates
+temporary files for redirection into `ssh`, `scp` and `ftp` binaries. Those,
+files paths are windows ones and are invalid into the wsl. The scripts will
+translate the windows paths into valid wsl ones using the `wslpath`utility.
+
+==============================================================================
+6. Issues                                                       *setpwsh-issues*
+
+WINDOWS NETWORKING ISSUES                               *setpwsh-win-networking*
+
+One common use case is accessing a server using a ssh connection. Using vim on
+the server side should be transparent through the tty connection but the
+`setpwsh` plugin may fail on this environment.
+The reason is that the access token windows assigns to the remote session
+belongs to the group `NT AUTHORITY\NETWORK` and as non-interactive users lack
+some privileges. In particular, the privilege to query processes command lines
+(even the own powershell process). That effectively disables the plugin
+operation.
+
+Note: RDP (Remote Desktop Protocol) connections do not suffer this issue
+because the access token granted by windows belongs to `NT AUTHORITY\INTERACTIVE`
+instead.
+
+In order to prevent plugin set up in this situation privilege testing can be
+enabled using: >
+
+    let g:setpwsh_enable_test = 1
+
+This will check if the plugin works before setting it up. Because this test
+may slow down startup is disabled by default.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:
