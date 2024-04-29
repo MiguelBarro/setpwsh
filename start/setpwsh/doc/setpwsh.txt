@@ -45,7 +45,7 @@ Using powershell as windows 'shell' with the defaults settings (see
 <  which becomes the powershell statement: >
     > Get-Item C:\Program Files
 <  and fails due to the lack of quotation marks.
-  This issue do not plage pwsh for linux or mac.
+  This issue does not plague pwsh for linux or mac.
 
   Note: The CRT parsing and the own pwsh parsing strategy (which nowadays
   admits two flavours, see `$PSNativeCommandArgumentPassing`) is so
@@ -57,7 +57,7 @@ Using powershell as windows 'shell' with the defaults settings (see
     > Install-Module -Name Pscx
 
 • Powershell heavily relies on pipelines to join different cmdlets. It will be
-  very convenient to profit from vim integrated filtering capabilities to feed
+  very convenient to profit from vim's integrated filtering capabilities to feed
   those pipelines.
 
 This plugin rigs the 'shell', 'shellcmdflag' and other related options to
@@ -191,7 +191,7 @@ will fill the buffer with: >
 
 we can use a |filter| command to modify the buffer. The plugin allows
 creating powershell filters where the buffer input is translated into a
-powershell pipeline input. The `$_`automatic variable will match each input
+powershell pipeline input. The `$_` automatic variable will match each input
 line. For example in the above buffer doing: >
 
     :1,5!"-->$_<--"
