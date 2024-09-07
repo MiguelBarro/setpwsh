@@ -1,4 +1,6 @@
 " setpwsh.vim: Sets up pwsh as a full fledge shell
+" GetLatestVimScripts: 6106 1 :AutoInstall: setpwsh.vmb
+
 if exists('g:loaded_setpwsh') || &cp
   finish
 endif
