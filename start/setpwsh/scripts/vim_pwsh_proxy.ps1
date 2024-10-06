@@ -8,6 +8,27 @@
 
 try
 {
+    # Check encoding
+    $encoding = switch ($Env:setpwsh_encoding)
+    {
+        "ascii" {'$OutputEncoding = New-Object System.Text.ASCIIEncoding;'}
+        "utf7" {'$OutputEncoding = New-Object System.Text.UTF7Encoding;'}
+        "utf32" {'$OutputEncoding = New-Object System.Text.UTF32Encoding;'}
+        "unicode" {'$OutputEncoding = New-Object System.Text.UnicodeEncoding;'}
+        default
+        {
+            $Env:setpwsh_encoding = "utf8"
+            '$OutputEncoding = New-Object System.Text.UTF8Encoding;'
+        }
+    }
+
+    $encoding += '[Console]::InputEncoding = $OutputEncoding;' 
+    $encoding += '[Console]::OutputEncoding = $OutputEncoding;' 
+    $encoding += '$PSDefaultParameterValues["*:Encoding"] = "{0}";' -f $Env:setpwsh_encoding 
+
+    Invoke-Expression -Command $encoding
+
+    # Retrieve command line
     $proc = Get-Process -Pid $pid
 
     if ($PSEdition -eq "Desktop")
@@ -75,7 +96,7 @@ try
         }
 
         # allow stdin forwarding under binary demand
-        $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
+        $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($encoding + $cmd))
         & $proc.ProcessName -NoLogo -NoProfile -ExecutionPolicy Bypass `
                             -NonInteractive -EncodedCommand $b64_cmd
     }

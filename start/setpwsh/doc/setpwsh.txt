@@ -20,6 +20,7 @@ Copyright: Copyright (C) 2024 Miguel Barro                   *setpwsh-copyright*
 3.  Installation......................................: |setpwsh-installation|
 4.  Usage.............................................: |setpwsh-usage|
         OPTIONS.......................................: |setpwsh-options|
+	ENVIRONMENT VARIABLES.........................: |setpwsh-env-vars| 
         COMMANDS......................................: |setpwsh-commands|
         BANG COMMANDS.................................: |setpwsh-!cmd|
         INVOKING PS1 SCRIPTS..........................: |setpwsh-ps1|
@@ -146,6 +147,12 @@ The following options are only meaningful in windows:
 
   *g:setpwsh_enable_test*    if 1 performs testing for privileges. Defaults 0.
                            May slows down startup.
+
+ENVIRONMENT VARIABLES					    *setpwsh-env-vars* 
+
+  *$setpwsh_encoding*        Decides powershell binary encoding for input and
+			   output pipes. Possible values: ascii, utf7, utf8,
+			   unicode, uft32. Defaults to 'utf8'.
 
 COMMANDS                                           *setpwsh-commands* *:SetPwsh*
 
@@ -402,16 +409,24 @@ where <EOF> depends on the context. For gVim it would be Ctrl-D and for vim in
 windows terminal would be Ctrl-Z,<RETURN>. Each terminal has its own <EOF> key
 combination.
 
-Note that gVim pipe redirection is not an actual tty. The `ssh.ps1` script for
-example internally calls the `ssh` within the wsl2 but we cannot interact with
-it and introduce a password. On vim the `ssh.ps1` allows interaction because
-is redirecting to an actual console.
+Note that windows' gVim pipe redirection is not an actual tty. The `ssh.ps1`
+script for example internally calls the `ssh` within the wsl2 but we cannot
+interact with it and introduce a password. On vim the `ssh.ps1` allows
+interaction because is redirecting to an actual console.
 
 In |setpwsh-ssh| the motivation of using wsl2 ssh implementation was
 explained. A direct wsl call would fail because the |netrw| plugin creates
 temporary files for redirection into `ssh`, `scp` and `ftp` binaries. Those,
 files paths are windows ones and are invalid into the wsl. The scripts will
-translate the windows paths into valid wsl ones using the `wslpath`utility.
+translate the windows paths into valid wsl ones using the `wslpath` utility.
+
+There is another pitfall about pipe redirection. For backward compatibility
+powershell binaries on windows use `old unicode (UCS-2)` encoding for `stdin`
+and `stdout`. This does not fare well with with emojis and other symbols
+outside of the `UCS-2` capabilities (which end up translated as `?`). On linux
+the default pipe encoding is `UTF-8` and there are not translation issues.  As
+a workaround an environment variable (see |setpwsh-env-vars|) was introduced to
+select the pipe encoding during the auxiliary script execution.
 
 ==============================================================================
 6. Issues                                                       *setpwsh-issues*
@@ -438,5 +453,11 @@ enabled using: >
 
 This will check if the plugin works before setting it up. Because this test
 may slow down startup is disabled by default.
+
+==============================================================================
+7. History						       *setpwsh-history*
+
+	v1.1:	Oct 06, 2024	* (Miguel Barro) Fix emoji rendering by
+				  modifying pwsh pipe text encoding.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

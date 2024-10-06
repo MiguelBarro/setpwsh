@@ -5,7 +5,7 @@ if exists('g:loaded_setpwsh') || &cp
   finish
 endif
 
-let g:loaded_setpwsh = '1.0.0' " version number
+let g:loaded_setpwsh = '1.1.0' " version number
 
 " dummy version replaced by the actual ones if possible
 command -nargs=* SetPwsh
@@ -32,29 +32,35 @@ set cpo&vim
 " g:setpwsh_ftp_from_wsl   -> if 1 sets up netrw global options to rig wsl ftp (only windows)
 " g:setpwsh_ssh_from_wsl   -> if 1 sets up netrw global options to rig wsl ssh & scp (only windows)
 " g:setpwsh_enable_test    -> if 1 performs testing for privileges (slows down startup). Defaults 0.
+" $setpwsh_encoding        -> decides powershell binary encoding for input and output pipes. Defaults utf8.
+"                             Possible values: ascii, utf7, utf8, unicode, uft32
 
 if has('win32')
     if !exists('g:setpwsh_shell') || g:setpwsh_shell !=? "powershell"
         let g:setpwsh_shell = "pwsh"
     endif
 else
-  let g:setpwsh_shell = "pwsh"
+    let g:setpwsh_shell = "pwsh"
 endif
 
 if !exists('g:setpwsh_enabled')
-  let g:setpwsh_enabled = 0
+    let g:setpwsh_enabled = 0
 endif
 
 if !exists('g:setpwsh_ftp_from_wsl')
-  let g:setpwsh_ftp_from_wsl = 0
+    let g:setpwsh_ftp_from_wsl = 0
 endif
 
 if !exists('g:setpwsh_ssh_from_wsl')
-  let g:setpwsh_ssh_from_wsl = 0
+    let g:setpwsh_ssh_from_wsl = 0
 endif
 
 if !exists('g:setpwsh_enable_test')
-  let g:setpwsh_enable_test = 0
+    let g:setpwsh_enable_test = 0
+endif
+
+if !exists('$setpwsh_encoding')
+  let $setpwsh_encoding = 'utf8'
 endif
 
 " Commands:
