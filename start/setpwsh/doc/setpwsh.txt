@@ -1,6 +1,6 @@
 *setpwsh.txt*      Improved pwsh shell experience
 
-Author: Miguel Barro <miguel.barro@live.com> 
+Author: Miguel Barro <miguel.barro@live.com>
 
 Copyright: Copyright (C) 2024 Miguel Barro                   *setpwsh-copyright*
 
@@ -20,12 +20,13 @@ Copyright: Copyright (C) 2024 Miguel Barro                   *setpwsh-copyright*
 3.  Installation......................................: |setpwsh-installation|
 4.  Usage.............................................: |setpwsh-usage|
         OPTIONS.......................................: |setpwsh-options|
-	ENVIRONMENT VARIABLES.........................: |setpwsh-env-vars| 
+	ENVIRONMENT VARIABLES.........................: |setpwsh-env-vars|
         COMMANDS......................................: |setpwsh-commands|
         BANG COMMANDS.................................: |setpwsh-!cmd|
         INVOKING PS1 SCRIPTS..........................: |setpwsh-ps1|
         GVIM ON WINDOWS...............................: |setpwsh-gvim-win|
         SSH SCRIPTS FOR WSL...........................: |setpwsh-ssh|
+	VIM9 COMMON & NETRW VIEWER....................: |setpwsh-viewer|
 5.  Internals.........................................: |setpwsh-internals|
 6.  Issues............................................: |setpwsh-issues|
 
@@ -35,7 +36,7 @@ Copyright: Copyright (C) 2024 Miguel Barro                   *setpwsh-copyright*
 Using powershell as windows 'shell' with the defaults settings (see
 |dos-pwsh|) is a poor experience:
 
-• Commands perfectly valid in terminal cannot be used due to the defective way 
+• Commands perfectly valid in terminal cannot be used due to the defective way
   windows CRT parses command lines, see:
     https://devblogs.microsoft.com/oldnewthing/20100917-00/?p=12833
   Powershell binary uses also this CRT parsing strategy. For example from cmd: >
@@ -119,7 +120,7 @@ available) see |setpwsh-ssh|.
 ==============================================================================
 4. Usage                                                         *setpwsh-usage*
 
-OPTIONS                                                        *setpwsh-options* 
+OPTIONS                                                        *setpwsh-options*
 
   *g:setpwsh_enabled*        If 1 automatically sets up powershell/pwsh when the
                            plugin is loaded
@@ -143,12 +144,14 @@ The following options are only meaningful in windows:
   *g:setpwsh_ftp_from_wsl*   If 1 sets up netrw global options to rig wsl ftp.
 
   *g:setpwsh_ssh_from_wsl*   If 1 sets up netrw global options to rig wsl ssh &
-                           scp. 
+                           scp.
 
-  *g:setpwsh_enable_test*    if 1 performs testing for privileges. Defaults 0.
+  *g:setpwsh_enable_test*    If 1 performs testing for privileges. Defaults 0.
                            May slows down startup.
 
-ENVIRONMENT VARIABLES					    *setpwsh-env-vars* 
+  *g:setpwsh_netrw_viewer*   If 1 replaces default document viewer. Defaults 1.
+
+ENVIRONMENT VARIABLES					    *setpwsh-env-vars*
 
   *$setpwsh_encoding*        Decides powershell binary encoding for input and
 			   output pipes. Possible values: ascii, utf7, utf8,
@@ -158,7 +161,7 @@ COMMANDS                                           *setpwsh-commands* *:SetPwsh*
 
 There is only a single command: >
 
-    :SetPwsh [Desktop | FtpFromWsl | SshFromWsl]
+    :SetPwsh [Desktop | NoViewer | FtpFromWsl | SshFromWsl]
 
 This command will modify |'shell'| and related options to use the powershell.
 It admits the following argument flags that are only meaningful in windows:
@@ -167,6 +170,7 @@ It admits the following argument flags that are only meaningful in windows:
               Note: if powershell core is not installed the command will
               fallback to powershell desktop.
 
+• NoViewer    Keeps vim default document viewer.
 • FtpFromWsl  Sets up netrw global options to rig wsl ftp.
 • SshFromWsl  Sets up netrw global options to rig wsl ssh & scp.
 
@@ -181,7 +185,7 @@ powershell as will on a terminal. For example: >
 will work properly.
 
 Note: Vim will prevent some special chars to be forwarded to any shell. For
-example `%` or `#` (see all of them in |cmdline-special|). 
+example `%` or `#` (see all of them in |cmdline-special|).
 
 We can read powershell pipeline output into the current buffer using |:read!|.
 For example: >
@@ -305,7 +309,7 @@ clients that provide a more acceptable experience.
   operation.
   The oportunistic multiplexing allows new sessions to profit from an open
   session handshake removing that latency.
-  
+
   This feature is enabled using |:SetPwsh| with the `SshFromWsl` flag.
 
   There is an implementation pitfall: interaction with the ssh client is
@@ -321,6 +325,46 @@ clients that provide a more acceptable experience.
   enforced by default. Note that for most public ftps the default account is
   username=anonymous and password='' (not empty).
 
+VIM9 COMMON & NETRW VIEWER                                      *setpwsh-viewer*
+
+All OS allow to associate filetypes to specific programs. This is a convenience
+for the user that does not need to open manually a specific program to edit a
+file.
+Many OS provide programs to open a file with the associated editor. For example:
+• `open` on MacOS
+• `xdg-open` on BSD.
+Unfortunately, Windows provides functions to do this taks (`ShellExecute()`) but
+fails to provide a specific program to do so. As a workaround both builtin shells
+provide this feature via builtin commands:
+• `cmd` has a `start` command: >
+    > start "" /b "C:\path\to my\file.pdf"
+• `powershell` has a `Start-Process` cmdlet: >
+    > Start-Process -Verb Open -FilePath "C:\path\to my\file.pdf"
+
+Vim provides this feature too builtin, see |:!start|. The above would be:
+    :!start C:\path\to my\file.pdf
+
+|netrw| originally implemented this feature allowing the user to define a
+`g:netrw_browsex_viewer` that points to a viewer program. The windows'
+default is `explorer.exe` which ignores files associations and opens the File
+explorer dialog.
+
+Eventually opening files using association is quite common and this
+functionality was incorporated to a builtin common Vim9 script utils.
+|netrw| was updated to delegate into the Vim9 utils.
+
+Because the default behaviour keeps calling `explorer.exe` the plugin will
+override the default viewer and use the proper OS file association.
+
+To prevent the plugin from overriding the viewer set: >
+    let g:setpwsh_netrw_viewer = 0
+or call |:SetPwsh| with the NoViewer flag.
+
+Note that probably the reason why Microsoft does not provide a program
+like `xdg-open` is the defective way windows CRT parses command lines, see
+|setpwsh-motivation|. If such a program existed and was used as |netrw| viewer
+it would fail to open files with spaces in the path.
+
 ==============================================================================
 5. Internals                                                 *setpwsh-internals*
 
@@ -334,7 +378,10 @@ issue.
 Unfortunately that meant adding new options and `base64` support in vim
 itself.  The `base64` support in vim was for a while in the roadmap (see
 |todo.txt|) but the introduction of |Blobs| support allows vim to solve the
-same issues more efficiently.
+same issues more efficiently¹.
+
+¹) `base64` support via builtin functions |base64_decode()|
+   and |base64_encode()| was introduced in patch 9.1.0980
 
 An easier workaround appeared out of Serendipity. In powershell is possible to
 query the actual commandline for the current process using
@@ -457,6 +504,7 @@ may slow down startup is disabled by default.
 ==============================================================================
 7. History						       *setpwsh-history*
 
+	v1.1.1: Mar 22, 2025	* (Miguel Barro) Fix |netrw| viewer on Windows.
 	v1.1:	Oct 06, 2024	* (Miguel Barro) Fix emoji rendering by
 				  modifying pwsh pipe text encoding.
 

@@ -3,6 +3,7 @@ $setpwsh_encoding	setpwsh.txt	/*$setpwsh_encoding*
 g:setpwsh_enable_test	setpwsh.txt	/*g:setpwsh_enable_test*
 g:setpwsh_enabled	setpwsh.txt	/*g:setpwsh_enabled*
 g:setpwsh_ftp_from_wsl	setpwsh.txt	/*g:setpwsh_ftp_from_wsl*
+g:setpwsh_netrw_viewer	setpwsh.txt	/*g:setpwsh_netrw_viewer*
 g:setpwsh_shell	setpwsh.txt	/*g:setpwsh_shell*
 g:setpwsh_ssh_from_wsl	setpwsh.txt	/*g:setpwsh_ssh_from_wsl*
 setpwsh	setpwsh.txt	/*setpwsh*
@@ -21,5 +22,6 @@ setpwsh-options	setpwsh.txt	/*setpwsh-options*
 setpwsh-ps1	setpwsh.txt	/*setpwsh-ps1*
 setpwsh-ssh	setpwsh.txt	/*setpwsh-ssh*
 setpwsh-usage	setpwsh.txt	/*setpwsh-usage*
+setpwsh-viewer	setpwsh.txt	/*setpwsh-viewer*
 setpwsh-win-networking	setpwsh.txt	/*setpwsh-win-networking*
 setpwsh.txt	setpwsh.txt	/*setpwsh.txt*

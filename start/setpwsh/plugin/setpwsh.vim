@@ -5,7 +5,7 @@ if exists('g:loaded_setpwsh') || &cp
   finish
 endif
 
-let g:loaded_setpwsh = '1.1.0' " version number
+let g:loaded_setpwsh = '1.1.1' " version number
 
 " dummy version replaced by the actual ones if possible
 command -nargs=* SetPwsh
@@ -29,9 +29,10 @@ set cpo&vim
 " Options:
 " g:setpwsh_enabled        -> if 1 automatically sets up powershell/pwsh when the plugin is loaded
 " g:setpwsh_shell          -> only for windows. Chooses between pwsh (core) or powershell (desktop). Defaults pwsh.
-" g:setpwsh_ftp_from_wsl   -> if 1 sets up netrw global options to rig wsl ftp (only windows)
-" g:setpwsh_ssh_from_wsl   -> if 1 sets up netrw global options to rig wsl ssh & scp (only windows)
+" g:setpwsh_ftp_from_wsl   -> if 1 sets up netrw global options to rig wsl ftp (only windows). Defaults 0.
+" g:setpwsh_ssh_from_wsl   -> if 1 sets up netrw global options to rig wsl ssh & scp (only windows). Defaults 0.
 " g:setpwsh_enable_test    -> if 1 performs testing for privileges (slows down startup). Defaults 0.
+" g:setpwsh_netrw_viewer   -> if 1 sets up the shell to be used as netrw viewer (only windows). Defaults 1.
 " $setpwsh_encoding        -> decides powershell binary encoding for input and output pipes. Defaults utf8.
 "                             Possible values: ascii, utf7, utf8, unicode, uft32
 
@@ -59,6 +60,10 @@ if !exists('g:setpwsh_enable_test')
     let g:setpwsh_enable_test = 0
 endif
 
+if !exists('g:setpwsh_netrw_viewer')
+    let g:setpwsh_netrw_viewer = 1
+endif
+
 if !exists('$setpwsh_encoding')
   let $setpwsh_encoding = 'utf8'
 endif
@@ -67,12 +72,13 @@ endif
 " SetPwsh -> Sets up the shell and related options
 " Arguments:
 " "Desktop" -> sets up the desktop version of powershell (only windows)
+" "NoViewer" -> do not associated as netrw viewer (only windows)
 " "FtpFromWsl" -> sets up netrw global options to rig wsl ftp (only windows)
 " "SshFromWsl" -> sets up netrw global options to rig wsl ssh & scp (only windows)
 command! -nargs=* -complete=customlist,s:cspwsh SetPwsh call s:SetPwsh(<f-args>)
 
 function s:cspwsh(...)
-    return ["Desktop", "FtpFromWsl", "SshFromWsl"]
+    return ["Desktop", "FtpFromWsl", "SshFromWsl", "NoViewer"]
 endfunction
 
 let s:script_dir = expand('<sfile>:p:h') .. '/../scripts/'
@@ -134,6 +140,8 @@ if has('win32')
 
             if s ==? "Desktop"
                 set shell=powershell
+            elseif s ==? "NoViewer"
+                let g:setpwsh_netrw_viewer = 0
             elseif s ==? "FtpFromWsl" && !l:ignore_wsl
                 if has('gui_running')
                     " ftp.ps1 is fed from the pipeline
@@ -151,6 +159,16 @@ if has('win32')
             endif
 
         endfor
+
+        " engage viewer if requested
+        if g:setpwsh_netrw_viewer
+            if exists('g:Openprg')
+                echoe "setpwsh plugin: Openprg is already set and is not replaced"
+            else
+                let g:Openprg = &shell . ' -NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "'
+                    \   . s:script_dir . 'openprg_pwsh_proxy.ps1"'
+            endif
+        endif
 
         " + PATHEXT must be modified to include .PS1 extension (this way executable() will be powershell friendly)
         if l:enable_wsl_tools
@@ -188,6 +206,9 @@ if g:setpwsh_enabled
         let cmdline = "SetPwsh"
         if g:setpwsh_shell ==? "powershell"
             let cmdline .= " Desktop"
+        endif
+        if !g:setpwsh_netrw_viewer
+            let cmdline .= " NoViewer"
         endif
         if g:setpwsh_ftp_from_wsl
             let cmdline .= " FtpFromWsl"
