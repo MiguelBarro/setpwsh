@@ -66,6 +66,20 @@ Once installed the [:SetPwsh](#usage) command must be used to modify the ['shell
     SetPwsh
 ```
 
+If you use a plugin manager like Vim-Plug you can install and load SetPwsh like this in you `vimrc` file:
+```vim
+call plug#begin()
+    Plug 'MiguelBarro/setpwsh', { 'rtp': 'start/setpwsh'   }
+call plug#end()
+
+" --- Pwsh options
+" Enable SetPwsh plugin
+let g:setpwsh_enabled = 1
+
+" SetPwsh netrw viewer feature: 1 To Enable or 0 Disable
+let g:setpwsh_netrw_viewer = 0
+```
+
 ## Usage
 
 There is only a single command:
