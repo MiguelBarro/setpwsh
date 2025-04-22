@@ -22,5 +22,5 @@ else
 if ($cmdline -match "$($MyInvocation.MyCommand.Name)\s+(`"?)(.*)\1")
 {
     $filename = $matches[2]
-    Start-Process -Verb Open -FilePath $filename
+    Start-Process -Verb Open -FilePath (Get-Item -Path $filename)
 }
