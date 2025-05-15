@@ -504,6 +504,7 @@ may slow down startup is disabled by default.
 ==============================================================================
 7. History						       *setpwsh-history*
 
+	v1.1.4: May 15 2025	* (Miguel Barro) Fix pwsh as dotnet tool on linux.
 	v1.1.1: Mar 22, 2025	* (Miguel Barro) Fix |netrw| viewer on Windows.
 	v1.1:	Oct 06, 2024	* (Miguel Barro) Fix emoji rendering by
 				  modifying pwsh pipe text encoding.
