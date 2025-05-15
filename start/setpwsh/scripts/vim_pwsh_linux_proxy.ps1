@@ -28,8 +28,31 @@ try
 
     Invoke-Expression -Command $encoding
 
-    # Retrieve command line
-    $cmdline = "$args"
+    # Check if running under dotnet
+    if ([System.Environment]::ProcessPath -match "dotnet")
+    {
+        # Retrieve command line. Don't use Get-Process because somehow quotes disappear.
+        $cmdline = [System.Environment]::CommandLine
+
+        if ($cmdline -match '(?<pwsh_arg>.*/pwsh.dll)')
+        {
+            $pwsh_cmd = "dotnet"
+            $pwsh_arg = $matches.pwsh_arg
+
+            # dotnet spawns another process where the commandline quotes may be removed.
+            # Stick to the vim's call commandline
+            $cmdline = (Get-Process -id $pid).Parent.CommandLine
+        }
+    }
+
+    # For snap or binaries version use $args
+    if ($pwsh_cmd -eq $null)
+    {
+        $pwsh_cmd = "pwsh"
+        $pwsh_arg = $null
+        $cmdline = "$args"
+    }
+
     if ($cmdline -match "\(& {(?<cat>.*) \| & (?<cmd>.*)}(?<redir>.*)\)$")
     {
         $cat = $matches.cat
@@ -76,7 +99,7 @@ try
 
         # allow stdin forwarding under binary demand
         $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
-        pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $b64_cmd
+        & $pwsh_cmd $pwsh_arg -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $b64_cmd
     }
 }
 catch
