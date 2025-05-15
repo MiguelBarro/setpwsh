@@ -29,7 +29,21 @@ try
     Invoke-Expression -Command $encoding
 
     # Retrieve command line
-    $cmdline = "$args"
+    $proc = Get-Process -Pid $pid
+    $cmdline = $proc.CommandLine
+    if ($cmdline -match '(?<pwsh_cmd>.*dotnet)\s+(?<pwsh_arg>.*/pwsh.dll)(?<cmdline>.*)$')
+    {
+        $pwsh_cmd = $matches.pwsh_cmd 
+        $pwsh_arg = $matches.pwsh_arg
+        $cmdline = $matches.cmdline
+    }
+    else
+    {
+        $pwsh_cmd = "pwsh"
+        $pwsh_arg = $null
+        $cmdline = "$args"
+    }
+
     if ($cmdline -match "\(& {(?<cat>.*) \| & (?<cmd>.*)}(?<redir>.*)\)$")
     {
         $cat = $matches.cat
@@ -76,7 +90,7 @@ try
 
         # allow stdin forwarding under binary demand
         $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
-        pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $b64_cmd
+        & $pwsh_cmd $pwsh_arg -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $b64_cmd
     }
 }
 catch
