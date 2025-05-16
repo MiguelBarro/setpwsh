@@ -1,0 +1,42 @@
+name: Plugin Vimball generation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - .github/workflows/vimball.yml
+      - README.md
+      - LICENSE
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  ubuntu-vimball:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Vim version
+        run: vim --version
+
+      - name: Generate Vimball
+        run: |
+          # Generate the deployment tree
+          ni -i dir pack/setpwsh
+          move ./start ./pack/setpwsh
+          # Generate the list of files to include
+          $files = dir -R ./pack/* -File | Resolve-Path -Relative -RelativeBasePath .
+          $files.Substring(2) | vim -c "%MkVimball setpwsh ." -c "q!" --not-a-term -
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SetPwsh vimball
+          path: setpwsh.vmb
+
+# vim: cuc
