@@ -444,7 +444,7 @@ Again CRT parsing issues must be avoided but this time using the
 
 By introducing $input in a gVim command is possible to trigger user interaction.
 For example: >
-    :$input | Format-Hex
+    :!$input | Format-Hex
 
 by typing: `Hello<EOF>` we get: >
 
