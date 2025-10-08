@@ -1,0 +1,140 @@
+name: SetPwsh plugin Multiplatform Testing
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - README.md
+      - LICENSE
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  testing:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest]
+    env:
+      RELEASE_VERSION: '9.1.1840'
+    steps:
+      - name: Workaround cairo includes on macos
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          # https://gist.github.com/Samk13/6fe053f6aea21727a8fb6ab7cb92709b
+          mkdir /opt/homebrew/Cellar/cairo/1.18.4/include/cairo/cairo
+          cp /opt/homebrew/Cellar/cairo/1.18.4/include/cairo/*.h /opt/homebrew/Cellar/cairo/1.18.4/include/cairo/cairo
+        
+      - name: Install Vim
+        run: |
+          $basedir = Get-Location
+          "BASEDIR=$basedir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+          New-Item -Type Directory -Path workplace | pushd
+
+          Invoke-WebRequest -Uri https://github.com/vim/vim/archive/refs/tags/v$Env:RELEASE_VERSION.zip `
+                            -OutFile vim.zip
+
+          Expand-Archive -Path vim.zip -DestinationPath . && Remove-Item vim.zip
+          $bindir = (Get-Item -Path vim*/src).FullName
+
+          "TESTDIR=$bindir/testdir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+          if ($IsWindows)
+          {
+            # Windows world: use precompiled binaries
+            Invoke-WebRequest -OutFile gvim.zip `
+                              -Uri https://github.com/vim/vim-win32-installer/releases/download/v$Env:RELEASE_VERSION/gvim_${Env:RELEASE_VERSION}_x64.zip
+            Expand-Archive -Path gvim.zip -DestinationPath . && rm gvim.zip
+            $vimdir = Get-Item -Path vim/vim*/vim.exe | Split-Path -Parent
+            Move-Item -Path $vimdir/* -Destination $bindir -Force
+          }
+          else
+          {
+            # UNIX world: build from sources
+            if ($IsLinux)
+            {
+              sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
+            }
+            else
+            {
+              # Manually install gtk+ because brew's version lacks X11 support (gdkx.h)
+              pushd $basedir/workplace
+
+              brew install meson gdk-pixbuf python-packaging gdk-pixbuf atk iso-codes `
+                   libxinerama libxrandr libxfixes libxdamage pango fribidi libepoxy `
+                   libxkbcommon libxi libxcursor dbus hicolor-icon-theme quartz-wm `
+                   gtk-mac-integration
+
+              git clone https://gitlab.gnome.org/GNOME/gtk.git --branch gtk-3-24 --depth 1
+              cd gtk
+
+              # Only quartz is supported on macOS
+              meson setup build/ -Dx11_backend=false -Dwayland_backend=false -Dbroadway_backend=false `
+                                 -Dwin32_backend=false -Dquartz_backend=true -Ddemos=false `
+                                 -Dexamples=false -Dtests=false -Dintrospection=false `
+                                 -Dcolord=no -Dprint_backends=file --prefix /opt/homebrew
+
+              ninja -C build/
+
+              sudo ninja -C build/ install -v
+
+              "gtk.pc location: $((gci -Path /opt/homebrew -R -Filter gtk*.pc).FullName)"
+
+              $Env:PKG_CONFIG_PATH = "/opt/homebrew/lib/pkgconfig"
+              "PKG_CONFIG_PATH=$Env:PKG_CONFIG_PATH" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+              popd
+            }
+
+            gi ./vim*/src | pushd
+            ./configure --prefix=/tmp/workplace --enable-gui=gtk3
+            Get-Content -Path ./auto/config.mk
+            make
+            popd
+          }
+
+          # local
+          $Env:PATH = "$bindir$([system.io.path]::PathSeparator)$Env:PATH"
+          # persistent
+          $bindir | Out-File -Path $Env:GITHUB_PATH -Encoding OEM -Append
+
+      - name: Check vim binaries
+        run: |
+          gcm vim | select Source
+          vim --version
+
+      - name: Check testing
+        run: |
+          cd $Env:TESTDIR
+
+          vim -u NONE -S runtest.vim test_plugin_glvs.vim
+          if (Test-Path -Path messages)
+          {
+            Get-Content -Path messages
+            if ( Select-String -Path messages -Pattern 'FAILED' )
+            {
+              throw "Some tests failed!!!"
+            }
+            Remove-Item messages
+          }
+
+          if (vim --version | Select-String -Pattern 'with GUI') 
+          {
+            vim -g -u NONE -U NONE -S runtest.vim test_plugin_glvs.vim
+            if (Test-Path -Path messages)
+            {
+              Get-Content -Path messages
+              if ( Select-String -Path messages -Pattern 'FAILED' )
+              {
+                throw "Some tests failed!!!"
+              }
+            }
+          }
+
+# vim: cuc sw=2 sts=2 et
