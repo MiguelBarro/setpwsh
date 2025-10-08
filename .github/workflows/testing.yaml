@@ -1,0 +1,199 @@
+name: SetPwsh plugin Multiplatform Testing
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - test_workflow
+    paths-ignore:
+      - README.md
+      - LICENSE
+  schedule:
+      - cron: '0 7 * * *'
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  testing:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - name: Detect latest Vim's release
+        run: |
+          $query = @{
+            Authentication = "OAuth"
+            Token          = ConvertTo-SecureString -String "${{ secrets.GITHUB_TOKEN }}" -AsPlainText
+            Method         = "Get"
+            Uri            = "https://api.github.com/repos/vim/vim-win32-installer/tags"
+          }
+          $tags = (Invoke-WebRequest @query).Content | ConvertFrom-Json -AsHashtable
+          $release = $tags[0].name.TrimStart('v')
+
+          Write-Host "Latest Vim release is $release"
+          "RELEASE_VERSION=$release" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+      - name: Install Vim
+        run: |
+          $basedir = Get-Location
+          "BASEDIR=$basedir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+          New-Item -Type Directory -Path workplace | pushd
+
+          Invoke-WebRequest -Uri https://github.com/vim/vim/archive/refs/tags/v$Env:RELEASE_VERSION.zip `
+                            -OutFile vim.zip
+
+          Expand-Archive -Path vim.zip -DestinationPath . && Remove-Item vim.zip
+          Rename-Item -Path vim* -NewName vim
+          $bindir = (Get-Item -Path vim/src).FullName
+
+          "TESTDIR=$bindir/testdir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+          if ($IsWindows)
+          {
+            # Windows world: use precompiled binaries
+            Invoke-WebRequest -OutFile gvim.zip `
+                              -Uri https://github.com/vim/vim-win32-installer/releases/download/v$Env:RELEASE_VERSION/gvim_${Env:RELEASE_VERSION}_x64.zip
+            Expand-Archive -Path gvim.zip -DestinationPath . && rm gvim.zip
+            $vimdir = Get-Item -Path vim/vim*/vim.exe | Split-Path -Parent
+            Move-Item -Path $vimdir/* -Destination $bindir -Force
+          }
+          else
+          {
+            # UNIX world: build from sources
+            if ($IsMacOS)
+            {
+              Write-Warning "MacOS lacks GUI support. Check on https://github.com/macvim-dev/macvim"
+            }
+            else # Ubuntu runner
+            {
+              sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
+            }
+
+            gi ./vim*/src | pushd
+            ./configure --prefix=/tmp/workplace --enable-gui=auto
+            # Get-Content -Path ./auto/config.mk
+            # Get-Content -Path ./auto/config.log
+            make
+            popd
+          }
+
+          # local
+          $Env:PATH = "$bindir$([system.io.path]::PathSeparator)$Env:PATH"
+          # persistent
+          $bindir | Out-File -Path $Env:GITHUB_PATH -Encoding OEM -Append
+
+      - name: Check vim binaries
+        run: |
+          # gcm vim | select Source
+          vim --version
+
+      - name: Checkout-install SetPwsh
+        uses: actions/checkout@v5
+        with:
+          path: workplace/vim/runtime/pack/SetPwsh
+
+      - name: Move tests to the test folder
+        run: |
+          $sourcedir = Get-Item -Path $Env:BASEDIR/workplace/vim/runtime/pack/SetPwsh/start/setpwsh/tests/
+          $tests = Get-ChildItem -Path $sourcedir -Filter *.vim
+          $targetdir = Get-Item -Path $Env:TESTDIR
+          Copy-Item -Path $tests -Destination $targetdir
+
+          $tests | ForEach-Object {
+              Write-Host "Copied test file: $_ to $targetdir"
+            }
+
+          # Login the new test
+          $MakeAll = Get-Item -Path $Env:TESTDIR/Make_all.mak
+          (Get-Content -Path $MakeAll | ForEach-Object {
+              $_
+              if ($_ -match '^NEW_TESTS =')
+              {
+                $tests.BaseName | ForEach-Object { " $_ \" }
+              }
+              elseif ($_ -match '^NEW_TESTS_RES =')
+              {
+                $tests.BaseName | ForEach-Object { " $_.res \" }
+              }
+            }
+          ) | Set-Content -Path $MakeAll
+
+      - name: Run testing
+        timeout-minutes: 5
+        run: |
+          # Hint plugin location to the tests
+          $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime" 
+         
+          # Prepare envioronment
+          if ($IsWindows)
+          {
+            $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+            & $vswhere -find **/Microsoft.VisualStudio.DevShell.dll | Import-Module
+            Enter-VsDevShell -SetDefaultWindowTitle -InstallPath (& $vswhere -property installationPath) `
+                             -StartInPath $Env:TESTDIR -DevCmdArguments '/arch=x64 /host_arch=x64'
+            $make = "nmake"
+            $makefile = "/f", "Make_mvc.mak"
+            $gui = ,"VIMPROG=gvim.exe"
+          }
+          else
+          {
+            cd $Env:TESTDIR
+            $make = "make"
+            $makefile = @()
+            $gui = ,"GUI_FLAG=-g"
+
+            if ($IsLinux)
+            {
+              # Start virtual display to prevent tests from hanging
+              sudo apt-get install -y xvfb
+              Xvfb :42 -screen 0 1024x768x24 &
+              $env:DISPLAY=":42"
+
+              Write-Host "Running a virtual display for GUI tests DISPLAY=$env:DISPLAY"
+            }
+          }
+
+          Write-Host "Executing tests: $make $makefile test_plugin_setpwsh"
+          & $make @makefile test_plugin_setpwsh
+
+          if (Test-Path -Path messages)
+          {
+            # Get-Content -Path messages
+            if ( Select-String -Path messages -Pattern 'FAILED' )
+            {
+              throw "Some tests failed!!!"
+            }
+            Remove-Item messages
+          }
+
+          # Github Hosted Windows runner is headless
+          # unlike linux this cannot be workaround with a virtual display
+          $gui_available = -not $IsWindows -or $Env:RUNNER_ENVIRONMENT -ne "github-hosted"
+
+          # check GUI binary availability and headless environment
+          if ( $gui_enabled -and (vim --version |
+               Select-String -Pattern 'with GTK. GUI|GUI/console') -ne $null )
+          {
+            Write-Host "Executing tests: $make $makefile $gui test_plugin_setpwsh"
+            & $make @makefile @gui test_plugin_setpwsh
+
+            if (Test-Path -Path messages)
+            {
+              # Get-Content -Path messages
+              if ( Select-String -Path messages -Pattern 'FAILED' )
+              {
+                throw "Some tests failed!!!"
+              }
+            }
+          }
+          else
+          {
+            Write-Warning "No GUI support in this vim build. Skipping GUI tests."
+          }
+
+# vim: cuc sw=2 sts=2 et

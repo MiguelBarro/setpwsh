@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths-ignore:
-      - .github/workflows/vimball.yml
+      - .github/workflows/**
       - README.md
       - LICENSE
 

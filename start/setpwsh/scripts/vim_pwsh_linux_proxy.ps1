@@ -13,12 +13,12 @@ try
     {
         "ascii" {'$OutputEncoding = New-Object System.Text.ASCIIEncoding;'}
         "utf7" {'$OutputEncoding = New-Object System.Text.UTF7Encoding;'}
-        "utf32" {'$OutputEncoding = New-Object System.Text.UTF32Encoding;'}
-        "unicode" {'$OutputEncoding = New-Object System.Text.UnicodeEncoding;'}
+        "utf32" {'$OutputEncoding = New-Object System.Text.UTF32Encoding  (,$false);'}
+        "unicode" {'$OutputEncoding = New-Object System.Text.UnicodeEncoding  (,$false);'}
         default
         {
-            $Env:setpwsh_encoding = "utf8"
-            '$OutputEncoding = New-Object System.Text.UTF8Encoding;'
+            $Env:setpwsh_encoding = "utf8NoBOM"
+            '$OutputEncoding = New-Object System.Text.UTF8Encoding $false;'
         }
     }
 
