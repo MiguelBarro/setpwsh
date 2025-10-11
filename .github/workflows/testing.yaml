@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest]
+        os: [ubuntu-latest]
     env:
       RELEASE_VERSION: '9.1.1840'
     steps:
@@ -93,7 +93,7 @@ jobs:
             }
 
             gi ./vim*/src | pushd
-            ./configure --prefix=/tmp/workplace --enable-gui=gtk3
+            ./configure --prefix=/tmp/workplace --enable-gui=auto
             Get-Content -Path ./auto/config.mk
             make
             popd
