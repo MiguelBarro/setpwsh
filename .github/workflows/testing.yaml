@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [macos-latest]
     env:
       RELEASE_VERSION: '9.1.1840'
     steps:
@@ -89,12 +89,22 @@ jobs:
               $Env:PKG_CONFIG_PATH = "/opt/homebrew/lib/pkgconfig"
               "PKG_CONFIG_PATH=$Env:PKG_CONFIG_PATH" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
 
+              if (!(pkg-config --exists gtk+-3.0 || $LASTEXITCODE))
+              {
+                "pkg-config can find gtk+-3.0"
+              }
+              else
+              {
+                throw "pkg-config cannot find gtk+-3.0"
+              }
+
               popd
             }
 
             gi ./vim*/src | pushd
-            ./configure --prefix=/tmp/workplace --enable-gui=auto
+            ./configure --prefix=/tmp/workplace --enable-gui --enable-gtktest --enable-gtk3-check
             Get-Content -Path ./auto/config.mk
+            Get-Content -Path ./auto/config.log
             make
             popd
           }
