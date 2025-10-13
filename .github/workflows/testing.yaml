@@ -101,9 +101,12 @@ jobs:
 
           if (vim --version | Select-String -Pattern 'with GTK. GUI|GUI/console') 
           {
+            Write-Warning "Before executing GUI tests"
             vim -g -u NONE -U NONE -S runtest.vim test_plugin_glvs.vim
+            Write-Warning "After executing GUI tests"
             if (Test-Path -Path messages)
             {
+              Write-Warning "Typing GUI tests results"
               Get-Content -Path messages
               if ( Select-String -Path messages -Pattern 'FAILED' )
               {
