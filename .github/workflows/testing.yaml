@@ -18,9 +18,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     env:
-      RELEASE_VERSION: '9.1.1840'
+      RELEASE_VERSION: '9.1.1852'
     steps:
       - name: Workaround cairo includes on macos
         if: matrix.os == 'macos-latest'
@@ -57,54 +57,19 @@ jobs:
           else
           {
             # UNIX world: build from sources
-            if ($IsLinux)
+            if ($IsMacOS)
+            {
+              Write-Warning "MacOS lacks GUI support. Check on https://github.com/macvim-dev/macvim"
+            }
+            else # Ubuntu runner
             {
               sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
             }
-            else
-            {
-              # Manually install gtk+ because brew's version lacks X11 support (gdkx.h)
-              pushd $basedir/workplace
-
-              brew install meson gdk-pixbuf python-packaging gdk-pixbuf atk iso-codes `
-                   libxinerama libxrandr libxfixes libxdamage pango fribidi libepoxy `
-                   libxkbcommon libxi libxcursor dbus hicolor-icon-theme quartz-wm `
-                   gtk-mac-integration
-
-              git clone https://gitlab.gnome.org/GNOME/gtk.git --branch gtk-3-24 --depth 1
-              cd gtk
-
-              # Only quartz is supported on macOS
-              meson setup build/ -Dx11_backend=false -Dwayland_backend=false -Dbroadway_backend=false `
-                                 -Dwin32_backend=false -Dquartz_backend=true -Ddemos=false `
-                                 -Dexamples=false -Dtests=false -Dintrospection=false `
-                                 -Dcolord=no -Dprint_backends=file --prefix /opt/homebrew
-
-              ninja -C build/
-
-              sudo ninja -C build/ install -v
-
-              "gtk.pc location: $((gci -Path /opt/homebrew -R -Filter gtk*.pc).FullName)"
-
-              $Env:PKG_CONFIG_PATH = "/opt/homebrew/lib/pkgconfig"
-              "PKG_CONFIG_PATH=$Env:PKG_CONFIG_PATH" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
-
-              if (!(pkg-config --exists gtk+-3.0 || $LASTEXITCODE))
-              {
-                "pkg-config can find gtk+-3.0"
-              }
-              else
-              {
-                throw "pkg-config cannot find gtk+-3.0"
-              }
-
-              popd
-            }
 
             gi ./vim*/src | pushd
-            ./configure --prefix=/tmp/workplace --enable-gui --enable-gtktest --enable-gtk3-check
-            Get-Content -Path ./auto/config.mk
-            Get-Content -Path ./auto/config.log
+            ./configure --prefix=/tmp/workplace --enable-gui=auto
+            # Get-Content -Path ./auto/config.mk
+            # Get-Content -Path ./auto/config.log
             make
             popd
           }
@@ -116,7 +81,7 @@ jobs:
 
       - name: Check vim binaries
         run: |
-          gcm vim | select Source
+          # gcm vim | select Source
           vim --version
 
       - name: Check testing
@@ -134,7 +99,7 @@ jobs:
             Remove-Item messages
           }
 
-          if (vim --version | Select-String -Pattern 'with GUI') 
+          if (vim --version | Select-String -Pattern 'with GTK. GUI|GUI/console') 
           {
             vim -g -u NONE -U NONE -S runtest.vim test_plugin_glvs.vim
             if (Test-Path -Path messages)
@@ -146,5 +111,10 @@ jobs:
               }
             }
           }
+          else
+          {
+            Write-Warning "No GUI support in this vim build. Skipping GUI tests."
+          }
+
 
 # vim: cuc sw=2 sts=2 et
