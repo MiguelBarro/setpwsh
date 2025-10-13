@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - test_workflow
     paths-ignore:
       - README.md
       - LICENSE
@@ -84,14 +85,41 @@ jobs:
           # gcm vim | select Source
           vim --version
 
-      - name: Check testing
+      - name: Run testing
+        timeout-minutes: 5
         run: |
-          cd $Env:TESTDIR
+          if ($IsWindows)
+          {
+            $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+            & $vswhere -find **/Microsoft.VisualStudio.DevShell.dll | Import-Module
+            Enter-VsDevShell -SetDefaultWindowTitle -InstallPath (& $vswhere -property installationPath) `
+                             -StartInPath $Env:TESTDIR -DevCmdArguments '/arch=x64 /host_arch=x64'
+            $make = "nmake"
+            $makefile = "/f", "Make_mvc.mak"
+          }
+          else
+          {
+            cd $Env:TESTDIR
+            $make = "make"
+            $makefile = @()
 
-          vim -u NONE -S runtest.vim test_plugin_glvs.vim
+            if ($IsLinux)
+            {
+              # Start virtual display to prevent tests from hanging
+              sudo apt-get install -y xvfb
+              Xvfb :42 -screen 0 1024x768x24 &
+              $env:DISPLAY=":42"
+
+              Write-Host "Running a virtual display for GUI tests DISPLAY=$env:DISPLAY"
+            }
+          }
+
+          Write-Host "Executing tests: $make $makefile test_plugin_glvs"
+          & $make @makefile test_plugin_glvs
+
           if (Test-Path -Path messages)
           {
-            Get-Content -Path messages
+            # Get-Content -Path messages
             if ( Select-String -Path messages -Pattern 'FAILED' )
             {
               throw "Some tests failed!!!"
@@ -101,13 +129,12 @@ jobs:
 
           if (vim --version | Select-String -Pattern 'with GTK. GUI|GUI/console') 
           {
-            Write-Warning "Before executing GUI tests"
-            vim -g -u NONE -U NONE -S runtest.vim test_plugin_glvs.vim
-            Write-Warning "After executing GUI tests"
+            Write-Host "Executing tests: $make $makefile GUI_FLAG=-g test_plugin_glvs"
+            & $make @makefile GUI_FLAG=-g test_plugin_glvs
+
             if (Test-Path -Path messages)
             {
-              Write-Warning "Typing GUI tests results"
-              Get-Content -Path messages
+              # Get-Content -Path messages
               if ( Select-String -Path messages -Pattern 'FAILED' )
               {
                 throw "Some tests failed!!!"
