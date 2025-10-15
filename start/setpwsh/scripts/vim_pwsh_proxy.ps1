@@ -13,12 +13,14 @@ try
     {
         "ascii" {'$OutputEncoding = New-Object System.Text.ASCIIEncoding;'}
         "utf7" {'$OutputEncoding = New-Object System.Text.UTF7Encoding;'}
-        "utf32" {'$OutputEncoding = New-Object System.Text.UTF32Encoding;'}
-        "unicode" {'$OutputEncoding = New-Object System.Text.UnicodeEncoding;'}
+        "utf32" {'$OutputEncoding = New-Object System.Text.UTF32Encoding (,$false);'}
+        "unicode" {'$OutputEncoding = New-Object System.Text.UnicodeEncoding (,$false);'}
         default
         {
-            $Env:setpwsh_encoding = "utf8"
-            '$OutputEncoding = New-Object System.Text.UTF8Encoding;'
+            if ($PsVersionTable.PSEdition -eq "Core")
+            { $Env:setpwsh_encoding = "utf8NoBOM" } else
+            { $Env:setpwsh_encoding = "utf8" }
+            '$OutputEncoding = New-Object System.Text.UTF8Encoding $false;'
         }
     }
 
@@ -99,6 +101,25 @@ try
         $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($encoding + $cmd))
         & $proc.ProcessName -NoLogo -NoProfile -ExecutionPolicy Bypass `
                             -NonInteractive -EncodedCommand $b64_cmd
+    }
+
+    # Unlike powershell core, BOM emission on redirection cannot be disabled for Desktop edition.
+    if ($PsVersionTable.PSEdition -eq "Desktop" -and $redir -ne "")
+    {
+        # Remove BOM
+        # retrieve redirection file
+        $file = $redir -replace '^\s*>+\s*', ''
+        if (Test-Path $file)
+        {
+            $BOM = @(0xef, 0xbb, 0xbf, 0xff, 0xfe, 0x00, 0x2b, 0x2f, 0x76)
+            $content = Get-Content -Path $file -Raw -Encoding Byte
+            # identify BOM
+            $Length = 0
+            $content[0..3] | ForEach-Object { if ($_ -in $BOM) { $Length++ } }
+            # ignore it
+            $content | Select-Object -Skip $Length |
+                Set-Content -Path $file -Encoding Byte
+        }         
     }
 }
 catch

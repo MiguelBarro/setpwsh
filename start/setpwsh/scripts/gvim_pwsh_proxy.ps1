@@ -13,12 +13,15 @@ try
     {
         "ascii" {'$OutputEncoding = New-Object System.Text.ASCIIEncoding;'}
         "utf7" {'$OutputEncoding = New-Object System.Text.UTF7Encoding;'}
-        "utf32" {'$OutputEncoding = New-Object System.Text.UTF32Encoding;'}
-        "unicode" {'$OutputEncoding = New-Object System.Text.UnicodeEncoding;'}
+        "utf32" {'$OutputEncoding = New-Object System.Text.UTF32Encoding (,$false);'}
+        "unicode" {'$OutputEncoding = New-Object System.Text.UnicodeEncoding (,$false);'}
         default
         {
-            $Env:setpwsh_encoding = "utf8"
-            '$OutputEncoding = New-Object System.Text.UTF8Encoding;'
+            # In pwsh core, the default encoding is utf8NoBOM
+            if ($PsVersionTable.PSEdition -eq "Core")
+            { $Env:setpwsh_encoding = "utf8NoBOM" } else
+            { $Env:setpwsh_encoding = "utf8" }
+            '$OutputEncoding = New-Object System.Text.UTF8Encoding $false;'
         }
     }
 
