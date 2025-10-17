@@ -9,6 +9,8 @@ on:
     paths-ignore:
       - README.md
       - LICENSE
+  schedule:
+      - cron: '0 7 * * *'
 
 defaults:
   run:
@@ -20,9 +22,16 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-    env:
-      RELEASE_VERSION: '9.1.1852'
     steps:
+      - name: Detect latest Vim's release
+        run: |
+          $tags = Invoke-WebRequest -Method Get -Uri https://api.github.com/repos/vim/vim-win32-installer/tags
+          $tags = $tags.Content | ConvertFrom-Json -AsHashtable
+          $release = $tags[0].name.TrimStart('v')
+
+          Write-Host "Latest Vim release is $release"
+          "RELEASE_VERSION=$release" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
       - name: Install Vim
         run: |
           $basedir = Get-Location
