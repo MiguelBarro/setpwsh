@@ -261,7 +261,9 @@ if executable('pwsh')
 
 endif " pwsh
 
-if executable('powershell')
+" executable('powershell') doesn't work because powershell is
+" an alias of pwsh in linux & mac
+if has('win32')
 
     func Test_setpwsh_bang_desktop()
         call s:set_powershell()
