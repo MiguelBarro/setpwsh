@@ -1,4 +1,5 @@
 # setpwsh
+[![SetPwsh plugin Multiplatform Testing](https://github.com/MiguelBarro/setpwsh/actions/workflows/testing.yaml/badge.svg?branch=main&event=schedule)](https://github.com/MiguelBarro/setpwsh/actions/workflows/testing.yaml)
 
 A Vim plugin to improve powershell integration.
 
