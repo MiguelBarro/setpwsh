@@ -5,7 +5,6 @@
 #   set shellquote=
 #   set shellxquote=(
 #   set shellredir=>%s
-
 try
 {
     # Check encoding
@@ -59,28 +58,36 @@ try
 
     if ($filter -or $is_input -or $is_pipe)
     {
+        $preference = '$ErrorActionPreference = "Stop";'
+        $propagate_error = '; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
+
         if ($is_pipe)
         {   # stdin capture
-            $cmd = "$indec `$input | % { $cmd } $outdec"
+            $cmd = "$indec `$input | % { $cmd } $propagate_error $outdec"
         }
         else
         {   # up to the user the stdin capture
-            $cmd = "$indec $cmd $outdec"
+            $cmd = "$indec $cmd $propagate_error $outdec"
         }
 
-        $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($encoding + $cmd))
+        $plain_cmd = $encoding + $preference + $cmd
+        $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($plain_cmd))
         & $proc.ProcessName -NoLogo -NoProfile -ExecutionPolicy ByPass `
                             -NonInteractive -EncodedCommand $b64_cmd 2>$null
     }
     else
     {   
-        # $cmd = "$indec $cmd $outdec"
         $cmd = "$indec $cmd $outdec"
         # no stdin capture
-        Invoke-Expression -Command $cmd -ErrorAction Stop
+        $ErrorActionPreference = "Stop"
+        Invoke-Expression -Command $cmd
     }
+
+    # propagate error level
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 catch
 {
     $_.ToString()
+    exit 1
 }

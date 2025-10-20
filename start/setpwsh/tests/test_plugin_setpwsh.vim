@@ -150,10 +150,16 @@ func s:system_tests(shellname)
     let fref = map(copy(ref), '"-->".v:val."<--"')
     call assert_equal(fref, output, a:shellname)
 
-"       TODO: systemlist() Not working for now, it must be fixed
-"       " Check systemlist()
-"       let output = systemlist("1..5 | % {[char]($_+96)}")
-"       call assert_equal(ref , output, "powershell")
+"   TODO: systemlist() Not working for now, it must be fixed
+"   " Check systemlist()
+"   let output = systemlist("1..5 | % {[char]($_+96)}")
+"   call assert_equal(ref , output, "powershell")
+ 
+    " Backtick execution is a particular case of system()
+    " open this very file
+    let this_script = expand("<script>")
+    exe $"view `(Get-Item -Path {this_script}).FullName`"
+    call assert_equal(bufnr(''), bufnr(this_script), a:shellname)
 
 endfunc
 
@@ -226,12 +232,52 @@ func s:binary_tests(shellname)
 
 endfunc
 
+" Check on error propagation via v:shell_error
+func s:shell_error_tests(shellname)
+
+    " Errors on system() calls
+    " Check error on unknown command
+    try
+        exe "call system(\"unknown-command\")"
+    catch /\<E282:/
+        call assert_notequal(v:shell_error, 0, a:shellname)
+    endtry
+
+    " Check error on binary command
+    exe "call system(\"xxd unknown-file\")"
+    call assert_notequal(v:shell_error, 0, a:shellname)
+
+    " Check error on cmdlet
+    call system("Get-Item -Path unknown-file")
+    call assert_true(v:shell_error != 0, a:shellname)
+ 
+    " Errors on bang commands
+    " Check error on unknown command
+    exe "normal :!unknown-command\<CR>\<CR>"
+    call assert_notequal(v:shell_error, 0, a:shellname)
+
+    " Check error on binary command
+    exe "normal :!xxd unknown-file\<CR>\<CR>"
+    call assert_notequal(v:shell_error, 0, a:shellname)
+
+    " Check error on cmdlet
+    exe "normal :!Get-Item -Path unknown-file\<CR>\<CR>"
+    call assert_notequal(v:shell_error, 0, a:shellname)
+
+    " Check filtering errors
+    new Xdummy
+    call setline(1, ['unknown-file'])
+    exe "normal :1,1!xxd $_\<CR>\<CR>"
+    call assert_notequal(v:shell_error, 0, a:shellname)
+
+    call setline(1, ['unknown-file'])
+    exe "normal :1,1!Get-Item -Path $_\<CR>\<CR>"
+    call assert_notequal(v:shell_error, 0, a:shellname)
+
+endfunc
+
 " TODO: Cannot check gVim reading stdin because the following does not work:
 " call test_feedinput(":read !$input | \\% { \"Entering $_\" }\<CR>a\<CR>b\<CR>c\<CR>\x04\<CR>")
-
-" TODO: Check on error propagation via v:shell_error
-"   call system("unknown-command")
-"   call assert_true(v:shell_error != 0)
 
 """""""
 " Tests
@@ -259,6 +305,11 @@ if executable('pwsh')
         call s:binary_tests("Core")
     endfunc
 
+    func Test_setpwsh_shell_error_core()
+        call s:set_pwsh()
+        call s:shell_error_tests("Core")
+    endfunc
+
 endif " pwsh
 
 " executable('powershell') doesn't work because powershell is
@@ -283,6 +334,11 @@ if has('win32')
     func Test_setpwsh_binary_desktop()
         call s:set_powershell()
         call s:binary_tests("Desktop")
+    endfunc
+
+    func Test_setpwsh_shell_error_desktop()
+        call s:set_powershell()
+        call s:shell_error_tests("Desktop")
     endfunc
 
 endif " powershell

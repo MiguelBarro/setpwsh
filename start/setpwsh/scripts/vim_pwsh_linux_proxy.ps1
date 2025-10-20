@@ -79,6 +79,7 @@ try
             $cmd = $cat + " | " + $cmd + " " + $redir
         }
 
+        $ErrorActionPreference = "Stop"
         Invoke-Expression -Command $cmd
     }
     else
@@ -101,8 +102,12 @@ try
         $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
         & $pwsh_cmd $pwsh_arg -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $b64_cmd
     }
+
+    # propagate error level
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 catch
 {
     $_.ToString()
+    exit 1
 }

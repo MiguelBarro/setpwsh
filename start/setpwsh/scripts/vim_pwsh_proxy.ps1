@@ -68,6 +68,7 @@ try
             $cmd = $cat + " | " + $cmd + " " + $redir
         }
 
+        $ErrorActionPreference = "Stop"
         Invoke-Expression -Command $cmd
     }
     else
@@ -101,28 +102,35 @@ try
         $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($encoding + $cmd))
         & $proc.ProcessName -NoLogo -NoProfile -ExecutionPolicy Bypass `
                             -NonInteractive -EncodedCommand $b64_cmd
+
     }
 
     # Unlike powershell core, BOM emission on redirection cannot be disabled for Desktop edition.
-    if ($PsVersionTable.PSEdition -eq "Desktop" -and $redir -ne "")
+    if ($PsVersionTable.PSEdition -eq "Desktop" -and $redir -ne $null)
     {
         # Remove BOM
         # retrieve redirection file
         $file = $redir -replace '^\s*>+\s*', ''
-        if (Test-Path $file)
+        if (Test-Path -Path $file)
         {
             $BOM = @(0xef, 0xbb, 0xbf, 0xff, 0xfe, 0x00, 0x2b, 0x2f, 0x76)
             $content = Get-Content -Path $file -Raw -Encoding Byte
-            # identify BOM
-            $Length = 0
-            $content[0..3] | ForEach-Object { if ($_ -in $BOM) { $Length++ } }
-            # ignore it
-            $content | Select-Object -Skip $Length |
-                Set-Content -Path $file -Encoding Byte
+            if ($content)
+            {
+                # identify BOM
+                $Length = 0
+                $content[0..3] | ForEach-Object { if ($_ -in $BOM) { $Length++ } }
+                # ignore it
+                $content | Select-Object -Skip $Length |
+                    Set-Content -Path $file -Encoding Byte
+            }
         }         
     }
+
+    # propagate error level
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 catch
 {
-    $_.ToString()
+    Write-Error $_.ToString()
 }
