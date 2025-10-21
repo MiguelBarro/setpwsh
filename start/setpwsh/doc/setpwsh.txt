@@ -62,6 +62,14 @@ Using powershell as windows 'shell' with the defaults settings (see
   very convenient to profit from vim's integrated filtering capabilities to feed
   those pipelines.
 
+• `v:shell_error` is never set using the |dos-powershell| provided setup. 
+  The reason is a well known powershell issue. Basically vim uses: >
+    > powershell -Command "(<cmd>) 2>&1 | Out-File -Encoding default <tmp out file>
+<  Surrounding <cmd> in parentheses and redirecting `stderr` to `stdout`
+  makes `powershell.exe` return 0 always. Powershell core (`pwsh.exe`) behaves identically.
+  See:
+    https://github.com/PowerShell/PowerShell/issues/11598
+
 This plugin rigs the 'shell', 'shellcmdflag' and other related options to
 workaround the above issues.
 
@@ -504,7 +512,9 @@ may slow down startup is disabled by default.
 ==============================================================================
 7. History						       *setpwsh-history*
 
-	v1.1.5: May 16 2025	* (Miguel Barro) Fix pwsh as dotnet tool on linux.
+	v1.1.6: Oct 21, 2025    * (Miguel Barro) Fix BOM for powershell.
+				  Fix v:shell_error. CI testing.
+	v1.1.5: May 16, 2025	* (Miguel Barro) Fix pwsh as dotnet tool on linux.
 	v1.1.1: Mar 22, 2025	* (Miguel Barro) Fix |netrw| viewer on Windows.
 	v1.1:	Oct 06, 2024	* (Miguel Barro) Fix emoji rendering by
 				  modifying pwsh pipe text encoding.
