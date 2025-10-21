@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - test_workflow
     paths-ignore:
       - README.md
       - LICENSE
@@ -176,7 +175,7 @@ jobs:
           $gui_available = -not $IsWindows -or $Env:RUNNER_ENVIRONMENT -ne "github-hosted"
 
           # check GUI binary availability and headless environment
-          if ( $gui_enabled -and (vim --version |
+          if ( $gui_available -and (vim --version |
                Select-String -Pattern 'with GTK. GUI|GUI/console') -ne $null )
           {
             Write-Host "Executing tests: $make $makefile $gui test_plugin_setpwsh"
