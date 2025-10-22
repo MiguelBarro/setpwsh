@@ -49,6 +49,16 @@ try
     $cmd = $cmdline.SubString($cmdline.IndexOf("(") + $offset)
     $cmd = $cmd.SubString(0, $cmd.Length - $offset)
 
+    # Check for redirection
+    if ($cmd -match '>(\S*)$')
+    {
+        $redir_file = $matches[1]
+    }
+    else
+    {
+        $outdec = "2>&1 | Out-String -Stream"
+    }
+
     $cmd | Select-String -Pattern '{(?:(?<o>{)|[^{}])*(?:(?<-o>})|[^{}])*}' -AllMatches |
            Select-Object -ExpandProperty Matches | Sort-Object -Descending Index |
            ForEach-Object { $res = $cmd } { $res = $res.Remove($_.Index, $_.Length) }
@@ -81,6 +91,26 @@ try
         # no stdin capture
         $ErrorActionPreference = "Stop"
         Invoke-Expression -Command $cmd
+    }
+
+    # Unlike powershell core, BOM emission on redirection cannot be disabled for Desktop edition.
+    if ($PsVersionTable.PSEdition -eq "Desktop" -and $redir_file -ne $null)
+    {
+        # Remove BOM
+        if (Test-Path -Path $redir_file)
+        {
+            $BOM = @(0xef, 0xbb, 0xbf, 0xff, 0xfe, 0x00, 0x2b, 0x2f, 0x76)
+            $content = Get-Content -Path $redir_file -Raw -Encoding Byte
+            if ($content)
+            {
+                # identify BOM
+                $Length = 0
+                $content[0..3] | ForEach-Object { if ($_ -in $BOM) { $Length++ } }
+                # ignore it
+                $content | Select-Object -Skip $Length |
+                    Set-Content -Path $redir_file -Encoding Byte
+            }
+        }         
     }
 
     # propagate error level
