@@ -73,11 +73,11 @@ try
 
         if ($is_pipe)
         {   # stdin capture
-            $cmd = "$indec `$input | % { $cmd } $propagate_error $outdec"
+            $cmd = "$indec `$input | % { $cmd } $outdec $propagate_error"
         }
         else
         {   # up to the user the stdin capture
-            $cmd = "$indec $cmd $propagate_error $outdec"
+            $cmd = "$indec $cmd $outdec $propagate_error"
         }
 
         $plain_cmd = $encoding + $preference + $cmd
