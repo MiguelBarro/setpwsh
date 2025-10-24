@@ -238,41 +238,72 @@ func s:shell_error_tests(shellname)
     " Errors on system() calls
     " Check error on unknown command
     try
-        exe "call system(\"unknown-command\")"
+        call system("unknown-command")
     catch /\<E282:/
-        call assert_notequal(v:shell_error, 0, a:shellname)
+        call assert_notequal(0, v:shell_error, a:shellname)
     endtry
 
+    " known command
+    let command = has("win32") ? "dir" : "ls"
+    call system(command)
+    call assert_equal(0, v:shell_error, a:shellname)
+
     " Check error on binary command
-    exe "call system(\"xxd unknown-file\")"
-    call assert_notequal(v:shell_error, 0, a:shellname)
+    call system("xxd unknown-file")
+    call assert_notequal(0, v:shell_error, a:shellname)
+
+    let this_script = expand("<script>")
+    exe $"call system(\"xxd {this_script}\")"
+    call assert_equal(0, v:shell_error, a:shellname)
 
     " Check error on cmdlet
     call system("Get-Item -Path unknown-file")
-    call assert_true(v:shell_error != 0, a:shellname)
+    call assert_notequal(0, v:shell_error, a:shellname)
+
+    call system($"Get-Item -Path {this_script}")
+    call assert_equal(0, v:shell_error, a:shellname)
  
     " Errors on bang commands
     " Check error on unknown command
     exe "normal :!unknown-command\<CR>\<CR>"
-    call assert_notequal(v:shell_error, 0, a:shellname)
+    call assert_notequal(0, v:shell_error, a:shellname)
+
+    " Check error on known command
+    exe $"normal :!{command}\<CR>\<CR>"
+    call assert_equal(0, v:shell_error, a:shellname)
 
     " Check error on binary command
     exe "normal :!xxd unknown-file\<CR>\<CR>"
-    call assert_notequal(v:shell_error, 0, a:shellname)
+    call assert_notequal(0, v:shell_error, a:shellname)
+
+    exe $"normal :!xxd {this_script}\<CR>\<CR>"
+    call assert_equal(0, v:shell_error, a:shellname)
 
     " Check error on cmdlet
     exe "normal :!Get-Item -Path unknown-file\<CR>\<CR>"
-    call assert_notequal(v:shell_error, 0, a:shellname)
+    call assert_notequal(0, v:shell_error, a:shellname)
+
+    exe $"normal :!Get-Item -Path {this_script}\<CR>\<CR>"
+    call assert_equal(0, v:shell_error, a:shellname)
 
     " Check filtering errors
     new Xdummy
+
     call setline(1, ['unknown-file'])
     exe "normal :1,1!xxd $_\<CR>\<CR>"
-    call assert_notequal(v:shell_error, 0, a:shellname)
+    call assert_notequal(0, v:shell_error, a:shellname)
 
     call setline(1, ['unknown-file'])
     exe "normal :1,1!Get-Item -Path $_\<CR>\<CR>"
-    call assert_notequal(v:shell_error, 0, a:shellname)
+    call assert_notequal(0, v:shell_error, a:shellname)
+
+    call setline(1, [this_script])
+    exe "normal :1,1!xxd $_\<CR>\<CR>"
+    call assert_equal(0, v:shell_error, a:shellname .. " 1,1!xxd $_")
+
+    call setline(1, [this_script])
+    exe "normal :1,1!Get-Item -Path $_\<CR>\<CR>"
+    call assert_equal(0, v:shell_error, a:shellname .. " 1,1!Get-Item -Path $_")
 
 endfunc
 
