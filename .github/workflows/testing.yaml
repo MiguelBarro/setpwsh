@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-2022]
     steps:
       - name: Detect latest Vim's release
         run: |
@@ -56,7 +56,7 @@ jobs:
           {
             # Windows world: use precompiled binaries
             Invoke-WebRequest -OutFile gvim.zip `
-                              -Uri https://github.com/vim/vim-win32-installer/releases/download/v$Env:RELEASE_VERSION/gvim_${Env:RELEASE_VERSION}_x64.zip
+                              -Uri https://github.com/vim/vim-win32-installer/releases/download/v$Env:RELEASE_VERSION/gvim_${Env:RELEASE_VERSION}_x86.zip
             Expand-Archive -Path gvim.zip -DestinationPath . && rm gvim.zip
             $vimdir = Get-Item -Path vim/vim*/vim.exe | Split-Path -Parent
             Move-Item -Path $vimdir/* -Destination $bindir -Force
@@ -124,6 +124,9 @@ jobs:
 
       - name: Run testing
         timeout-minutes: 5
+        env:
+          VCARCH: x86
+          WARCH: ia32
         run: |
           # Hint plugin location to the tests
           $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime" 
@@ -134,7 +137,7 @@ jobs:
             $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
             & $vswhere -find **/Microsoft.VisualStudio.DevShell.dll | Import-Module
             Enter-VsDevShell -SetDefaultWindowTitle -InstallPath (& $vswhere -property installationPath) `
-                             -StartInPath $Env:TESTDIR -DevCmdArguments '/arch=x64 /host_arch=x64'
+                             -StartInPath $Env:TESTDIR -DevCmdArguments '/arch=x86 /host_arch=x86'
             $make = "nmake"
             $makefile = "/f", "Make_mvc.mak"
             $gui = ,"VIMPROG=gvim.exe"
@@ -170,13 +173,8 @@ jobs:
             Remove-Item messages
           }
 
-          # Github Hosted Windows runner is headless
-          # unlike linux this cannot be workaround with a virtual display
-          $gui_available = -not $IsWindows -or $Env:RUNNER_ENVIRONMENT -ne "github-hosted"
-
           # check GUI binary availability and headless environment
-          if ( $gui_available -and (vim --version |
-               Select-String -Pattern 'with GTK. GUI|GUI/console') -ne $null )
+          if (vim --version | Select-String -Pattern 'with GTK. GUI|GUI/console')
           {
             Write-Host "Executing tests: $make $makefile $gui test_plugin_setpwsh"
             & $make @makefile @gui test_plugin_setpwsh
