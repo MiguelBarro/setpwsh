@@ -56,7 +56,7 @@ jobs:
           {
             # Windows world: use precompiled binaries
             Invoke-WebRequest -OutFile gvim.zip `
-                              -Uri https://github.com/vim/vim-win32-installer/releases/download/v$Env:RELEASE_VERSION/gvim_${Env:RELEASE_VERSION}_x86.zip
+                              -Uri https://github.com/vim/vim-win32-installer/releases/download/v$Env:RELEASE_VERSION/gvim_${Env:RELEASE_VERSION}_x64.zip
             Expand-Archive -Path gvim.zip -DestinationPath . && rm gvim.zip
             $vimdir = Get-Item -Path vim/vim*/vim.exe | Split-Path -Parent
             Move-Item -Path $vimdir/* -Destination $bindir -Force
@@ -85,6 +85,29 @@ jobs:
           $Env:PATH = "$bindir$([system.io.path]::PathSeparator)$Env:PATH"
           # persistent
           $bindir | Out-File -Path $Env:GITHUB_PATH -Encoding OEM -Append
+
+#     - name: Replace binaries with vim repo's artifact
+#       uses: actions/download-artifact@v4
+#       with:
+#         # name: vimx64-msvc
+#         artifact-ids: 4368665184
+#         path: workplace/vim/src
+#         repository: MiguelBarro/vim
+#         run-id: 18795575674
+
+      - name: Replace binaries with vim repo's artifact
+        run: |
+          $download = @{
+            Authentication = "OAuth"
+            Token          = ConvertTo-SecureString -String "${{ secrets.GITHUB_TOKEN }}" -AsPlainText
+            Method         = "Get"
+            Uri            = "https://api.github.com/repos/MiguelBarro/vim/actions/artifacts/4368665184/zip"
+            OutFile        = "artifact.zip"
+          }
+          Invoke-WebRequest @download
+          $destination = (Get-Command vim).Source | Split-Path -Parent
+          Expand-Archive -Path artifact.zip -DestinationPath $destination -Force
+          Remove-Item artifact.zip
 
       - name: Check vim binaries
         run: |
@@ -124,9 +147,6 @@ jobs:
 
       - name: Run testing
         timeout-minutes: 5
-        env:
-          VCARCH: x86
-          WARCH: ia32
         run: |
           # Hint plugin location to the tests
           $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime" 
@@ -137,7 +157,7 @@ jobs:
             $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
             & $vswhere -find **/Microsoft.VisualStudio.DevShell.dll | Import-Module
             Enter-VsDevShell -SetDefaultWindowTitle -InstallPath (& $vswhere -property installationPath) `
-                             -StartInPath $Env:TESTDIR -DevCmdArguments '/arch=x86 /host_arch=x86'
+                             -StartInPath $Env:TESTDIR -DevCmdArguments '/arch=x64 /host_arch=x64'
             $make = "nmake"
             $makefile = "/f", "Make_mvc.mak"
             $gui = ,"VIMPROG=gvim.exe"
