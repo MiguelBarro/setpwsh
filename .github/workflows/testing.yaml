@@ -20,8 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-#       os: [windows-latest, ubuntu-latest, macos-latest]
-        os: [windows-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
       - name: Detect latest Vim's release
         run: |
@@ -37,20 +36,34 @@ jobs:
           Write-Host "Latest Vim release is $release"
           "RELEASE_VERSION=$release" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
 
+      - name: Checkout-install SetPwsh
+        uses: actions/checkout@v5
+        with:
+          path: workplace/vim/runtime/pack/SetPwsh
+
       - name: Install Vim
         run: |
           $basedir = Get-Location
-          "BASEDIR=$basedir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
 
-          New-Item -Type Directory -Path workplace | pushd
+          pushd workplace
 
+          # Download Vim sources
           Invoke-WebRequest -Uri https://github.com/vim/vim/archive/refs/tags/v$Env:RELEASE_VERSION.zip `
                             -OutFile vim.zip
 
-          Expand-Archive -Path vim.zip -DestinationPath . && Remove-Item vim.zip
-          Rename-Item -Path vim* -NewName vim
-          $bindir = (Get-Item -Path vim/src).FullName
+          # Unpack Vim sources && merge SetPwsh into
+          Expand-Archive -Path vim.zip -DestinationPath .
+          Remove-Item vim.zip
 
+          $vimdir = Get-Item -Path vim-*
+          Move-Item -Path vim/runtime/pack/SetPwsh -Destination $vimdir/runtime/pack
+          Remove-Item -Recurse -Force vim/runtime
+          Move-Item -Path $vimdir/* -Destination vim
+          rmdir $vimdir
+
+          # Set helpful environment variables
+          $bindir = (Get-Item -Path vim/src).FullName
+          "BASEDIR=$basedir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
           "BINDIR=$bindir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
           "TESTDIR=$bindir/testdir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
 
@@ -60,14 +73,23 @@ jobs:
           if ($IsWindows)
           {
             # Windows world: use precompiled binaries ... unless you need gVim ... build from sources
-            
+
+            # Fix Makefile to use clang-cl
+            Get-Content ../runtime/pack/SetPwsh/.github/workflows/vim_mvc_clang.patch | patch -d .. -p1
+
             # Set up development environment
             $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
             & $vswhere -find **/Microsoft.VisualStudio.DevShell.dll | Import-Module
             Enter-VsDevShell -SetDefaultWindowTitle -InstallPath (& $vswhere -property installationPath) `
                              -StartInPath $bindir -DevCmdArguments '/arch=x64 /host_arch=x64'
+
+            # Decide to use cl or clang-cl
+            # $CC = "clang-cl"
+            $CC = "cl" # MSVC compiler seems to be faster in this case
+
             # Build matching environment tools (x64)
-            nmake -f Make_mvc.mak GUI=yes VIMDLL=yes CPU=AMD64 PLATFORMS=x64 DEBUG=yes USE_MP=NO USE_MSVCRT=yes
+            nmake -f Make_mvc.mak CC=$CC GUI=yes VIMDLL=yes CPU=AMD64 PLATFORMS=x64 `
+                                  DEBUG=yes USE_MP=NO USE_MSVCRT=yes
 
             # For debug builds redirect to debug binaries
             if (Test-Path -Path .\vimd.exe)
@@ -112,15 +134,10 @@ jobs:
 
           if (gcm gvim -ErrorAction SilentlyContinue)
           {
-            $version = New-TemporaryFile 
+            $version = New-TemporaryFile
             gvim -c "redir! > $version | version | redir END | q!"
             Get-Content -Path $version
           }
-
-      - name: Checkout-install SetPwsh
-        uses: actions/checkout@v5
-        with:
-          path: workplace/vim/runtime/pack/SetPwsh
 
       - name: Move tests to the test folder
         run: |
@@ -152,8 +169,8 @@ jobs:
         timeout-minutes: 5
         run: |
           # Hint plugin location to the tests
-          $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime" 
-         
+          $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime"
+
           # Prepare envioronment
           if ($IsWindows)
           {
