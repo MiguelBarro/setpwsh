@@ -20,7 +20,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+#       os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest]
     steps:
       - name: Detect latest Vim's release
         run: |
@@ -50,16 +51,34 @@ jobs:
           Rename-Item -Path vim* -NewName vim
           $bindir = (Get-Item -Path vim/src).FullName
 
+          "BINDIR=$bindir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
           "TESTDIR=$bindir/testdir" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+          # Enter build dir
+          pushd $bindir
 
           if ($IsWindows)
           {
-            # Windows world: use precompiled binaries
-            Invoke-WebRequest -OutFile gvim.zip `
-                              -Uri https://github.com/vim/vim-win32-installer/releases/download/v$Env:RELEASE_VERSION/gvim_${Env:RELEASE_VERSION}_x64.zip
-            Expand-Archive -Path gvim.zip -DestinationPath . && rm gvim.zip
-            $vimdir = Get-Item -Path vim/vim*/vim.exe | Split-Path -Parent
-            Move-Item -Path $vimdir/* -Destination $bindir -Force
+            # Windows world: use precompiled binaries ... unless you need gVim ... build from sources
+            
+            # Set up development environment
+            $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+            & $vswhere -find **/Microsoft.VisualStudio.DevShell.dll | Import-Module
+            Enter-VsDevShell -SetDefaultWindowTitle -InstallPath (& $vswhere -property installationPath) `
+                             -StartInPath $bindir -DevCmdArguments '/arch=x64 /host_arch=x64'
+            # Build matching environment tools (x64)
+            nmake -f Make_mvc.mak GUI=yes VIMDLL=yes CPU=AMD64 PLATFORMS=x64 DEBUG=yes USE_MP=NO USE_MSVCRT=yes
+
+            # For debug builds redirect to debug binaries
+            if (Test-Path -Path .\vimd.exe)
+            {
+              New-Item -ItemType SymbolicLink -Path .\vim.exe -Target .\vimd.exe
+            }
+
+            if (Test-Path -Path .\gvimd.exe)
+            {
+              New-Item -ItemType SymbolicLink -Path .\gvim.exe -Target .\gvimd.exe
+            }
           }
           else
           {
@@ -73,13 +92,14 @@ jobs:
               sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
             }
 
-            gi ./vim*/src | pushd
             ./configure --prefix=/tmp/workplace --enable-gui=auto
             # Get-Content -Path ./auto/config.mk
             # Get-Content -Path ./auto/config.log
             make
-            popd
           }
+
+          # Leaving build dir
+          popd
 
           # local
           $Env:PATH = "$bindir$([system.io.path]::PathSeparator)$Env:PATH"
@@ -88,8 +108,14 @@ jobs:
 
       - name: Check vim binaries
         run: |
-          # gcm vim | select Source
           vim --version
+
+          if (gcm gvim -ErrorAction SilentlyContinue)
+          {
+            $version = New-TemporaryFile 
+            gvim -c "redir! > $version | version | redir END | q!"
+            Get-Content -Path $version
+          }
 
       - name: Checkout-install SetPwsh
         uses: actions/checkout@v5
@@ -170,13 +196,8 @@ jobs:
             Remove-Item messages
           }
 
-          # Github Hosted Windows runner is headless
-          # unlike linux this cannot be workaround with a virtual display
-          $gui_available = -not $IsWindows -or $Env:RUNNER_ENVIRONMENT -ne "github-hosted"
-
           # check GUI binary availability and headless environment
-          if ( $gui_available -and (vim --version |
-               Select-String -Pattern 'with GTK. GUI|GUI/console') -ne $null )
+          if (vim --version | Select-String -Pattern 'with GTK. GUI|GUI/console')
           {
             Write-Host "Executing tests: $make $makefile $gui test_plugin_setpwsh"
             & $make @makefile @gui test_plugin_setpwsh
