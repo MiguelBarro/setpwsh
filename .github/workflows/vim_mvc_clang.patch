@@ -1,0 +1,16 @@
+diff --git a/src/Make_mvc.mak b/src/Make_mvc.mak
+index a59b083e7..adf03e918 100644
+--- a/src/Make_mvc.mak
++++ b/src/Make_mvc.mak
+@@ -814,7 +814,11 @@ EXECFLAGS =
+ EXELIBC = $(LIBC)
+ ! ELSE
+ EXECFLAGS = -DUSE_OWNSTARTUP /GS-
++!  IFDEF NODEBUG
+ EXELIBC =
++!  ELSE
++EXELIBC = ucrtd.lib
++!  ENDIF
+ ! ENDIF
+ !ELSE
+ OBJ = $(OBJ) $(OUTDIR)\os_w32exe.obj $(OUTDIR)\vim.res
