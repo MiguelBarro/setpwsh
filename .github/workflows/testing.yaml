@@ -42,6 +42,7 @@ jobs:
           path: workplace/vim/runtime/pack/SetPwsh
 
       - name: Install Vim
+        timeout-minutes: 5
         run: |
           $basedir = Get-Location
 
@@ -111,7 +112,12 @@ jobs:
             }
             else # Ubuntu runner
             {
-              sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
+              do
+              {
+                sudo apt update
+                sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
+              }
+              while ($LASTEXITCODE -ne 0)
             }
 
             ./configure --prefix=/tmp/workplace --enable-gui=auto
@@ -171,7 +177,29 @@ jobs:
           # Hint plugin location to the tests
           $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime"
 
-          # Prepare envioronment
+          # ScriptBlock to summarize test results
+          Install-Module -Name MarkdownPS -Repository PSGallery -Force
+          Import-Module MarkdownPS
+          $summary = { Param([String]$binary)
+              $Tests = Select-String -Path messages -Pattern "^Executed (?<Test>.*\(\))\s+in\s+(?<Seconds>.*) seconds"
+              Remove-Item messages
+              $Table = $Tests.Matches | % {
+                  $test = @{}
+                  $_.Groups | ? Name -NotMatch '\d'  | % {
+                      $test[$_.Name] = $_.Value
+                  }
+                  [PSCustomObject]$test
+              } | Select-Object @{l="Binary"; e={$binary}}, Test, Seconds
+              $Stats = $Table.Seconds | Measure-Object -Sum
+              $Table += [PSCustomObject]@{
+                  Binary = $binary
+                  Test = "Executed " + $Stats.Count + " tests"
+                  Seconds = "{0:F6}" -f $Stats.Sum
+              }
+              $Table | New-MDTable
+          }
+
+          # Prepare environment
           if ($IsWindows)
           {
             $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -210,7 +238,8 @@ jobs:
             {
               throw "Some tests failed!!!"
             }
-            Remove-Item messages
+            & $summary -binary "vim" |
+              Out-File -Path $Env:GITHUB_STEP_SUMMARY -Encoding OEM -Append
           }
 
           # check GUI binary availability and headless environment
@@ -226,11 +255,17 @@ jobs:
               {
                 throw "Some tests failed!!!"
               }
+
+              & $summary -binary "gvim" |
+                Out-File -Path $Env:GITHUB_STEP_SUMMARY -Encoding OEM -Append
             }
           }
           else
           {
-            Write-Warning "No GUI support in this vim build. Skipping GUI tests."
+            $msg = "No GUI support in this vim build. Skipping GUI tests."
+            Write-Warning $msg
+            "> [!WARNING]", "> $msg" |
+              Out-File -Path $Env:GITHUB_STEP_SUMMARY -Encoding OEM -Append
           }
 
 # vim: cuc sw=2 sts=2 et
