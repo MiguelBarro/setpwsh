@@ -42,6 +42,7 @@ jobs:
           path: workplace/vim/runtime/pack/SetPwsh
 
       - name: Install Vim
+        timeout-minutes: 5
         run: |
           $basedir = Get-Location
 
@@ -111,7 +112,11 @@ jobs:
             }
             else # Ubuntu runner
             {
-              sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
+              do
+              {
+                sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
+              }
+              while ($LASTEXITCODE -ne 0)
             }
 
             ./configure --prefix=/tmp/workplace --enable-gui=auto
@@ -230,7 +235,11 @@ jobs:
           }
           else
           {
-            Write-Warning "No GUI support in this vim build. Skipping GUI tests."
+            $msg = "⚠️  No GUI support in this vim build. Skipping GUI tests."
+            Write-Warning $msg
+            Write-Output "::warning::$msg"
+            "> [!WARNING]", "> $msg" |
+              Out-File -Path $GITHUB_STEP_SUMMARY -Encoding OEM -Append
           }
 
 # vim: cuc sw=2 sts=2 et
