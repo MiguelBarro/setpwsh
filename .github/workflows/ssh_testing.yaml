@@ -1,0 +1,118 @@
+name: Checking SSH
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/test_ssh
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  testing:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS does not support docker in GitHub Actions
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - name: Checkout-install SetPwsh
+        uses: actions/checkout@v5
+        with:
+          path: workplace/vim/runtime/pack/SetPwsh
+
+      - name: Install WSL2 Ubuntu Distro and Docker
+        if: contains(matrix.os, 'windows')
+        run: |
+          # 1. Install Ubuntu
+          wsl --install Ubuntu
+          Write-Host "WSL2 Ubuntu installed."
+
+          ## 2. Install Docker inside WSL2
+          #wsl -- curl -fsSL https://get.docker.com -o install-docker.sh
+          #wsl -- sudo sh install-docker.sh
+ 
+          ## 3. Keep WSL2 running
+          #wsl -d Ubuntu  --exec dbus-launch true
+
+      - name: Set up a SSH server in Docker
+        run: |
+          # Set up keys 
+          pushd workplace/vim/runtime/pack/SetPwsh/.github/workflows
+          mkdir sshkeys
+
+          @"
+          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGazb0M5H6YIIyiZBbNkbfjca6QZszzvx/9G0/SB6Ee5 setpwsh-test-key
+          "@ | Out-File -FilePath sshkeys/sshkey.pub -Encoding ASCII
+
+          '${{ secrets.MY_SECRET }}' |
+            Out-File -FilePath sshkeys/sshkey -Encoding ASCII
+
+          if ($IsLinux)
+          {
+            # Set file permission on Linux
+            chmod 600 sshkeys/sshkey
+          }
+
+          # Build docker image with SSH server
+          $docker = $IsWindows ? { wsl -- docker $args 2>$null} : "docker"
+          $base_image = "alpine:latest"
+          $sshport = 42
+
+          & $docker build `
+            --build-arg sshport=$sshport `
+            --build-arg base_image=$base_image `
+            --build-arg pubkey=sshkeys/sshkey.pub -t alpine:test .
+
+          # Run SSH server in background
+          & $docker run --rm -d -p "${sshport}:${sshport}" --name sshtest alpine:test
+
+          # Check docker is running
+          & $docker ps
+
+          # Avoid fingerprint prompt
+          mkdir -p ~/.ssh
+          (& $docker exec sshtest ssh-keyscan -p $sshport -H localhost) |
+            Out-File -Path ~/.ssh/known_hosts -Encoding OEM -Append
+
+          # Test SSH connection
+          # ssh -p $sshport -i sshkeys/sshkey sshuser@localhost whoami
+         
+          # Set up ssh agent and add private key
+          if ($IsWindows)
+          {
+            if ((Get-Service ssh-agent).StartType -eq "Disabled")
+            {
+              Set-Service -Name ssh-agent -StartupType Manual  
+            }
+            Start-Service ssh-agent
+          }
+          else
+          {
+            (ssh-agent -s | Select-String "^(?<name>.*)=(?<value>[^;]*);").Matches |
+              ForEach-Object {
+                # Extract environment variables
+                $name = ($_.Groups | ? Name -eq "name")
+                $value = ($_.Groups | ? Name -eq "value")
+                # Use locally
+                Invoke-Expression "`$Env:$name=`"$value`""
+                # Persist for next steps
+                "$name=$value" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+              }
+          }
+          ssh-add ./sshkeys/sshkey
+
+          # Test SSH connection
+          ssh -p $sshport sshuser@localhost whoami
+
+          # Populate environment variable for next steps
+          "SSHPORT=$sshport", "SSHUSER=sshuser" |
+            Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+      - name: Test SSH server in Docker
+        run: |
+          # Test SSH connection
+          ssh -p $Env:SSHPORT "${Env:SSHUSER}@localhost" whoami
