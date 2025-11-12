@@ -23,20 +23,25 @@ jobs:
         uses: actions/checkout@v5
         with:
           path: workplace/vim/runtime/pack/SetPwsh
-
-      - name: Install WSL2 Ubuntu Distro and Docker
+          
+      - name: Install WSL2
         if: contains(matrix.os, 'windows')
-        run: |
-          # 1. Install Ubuntu
-          wsl --install Ubuntu
-          Write-Host "WSL2 Ubuntu installed."
+        uses: Vampire/setup-wsl@v6.0.0
+        with:
+          additional-packages:
+            curl
+            openssh-client
+          distribution: Ubuntu-24.04
+          set-as-default: 'true'
+          use-cache: 'true'
+          wsl-version: 2
 
-          ## 2. Install Docker inside WSL2
-          #wsl -- curl -fsSL https://get.docker.com -o install-docker.sh
-          #wsl -- sudo sh install-docker.sh
- 
-          ## 3. Keep WSL2 running
-          #wsl -d Ubuntu  --exec dbus-launch true
+      - name: Install Docker inside WSL2
+        if: contains(matrix.os, 'windows')
+        shell: wsl-bash {0}
+        run: |
+          curl -fsSL https://get.docker.com -o install-docker.sh
+          sudo sh install-docker.sh
 
       - name: Set up a SSH server in Docker
         run: |
@@ -51,9 +56,22 @@ jobs:
           '${{ secrets.MY_SECRET }}' |
             Out-File -FilePath sshkeys/sshkey -Encoding ASCII
 
-          if ($IsLinux)
+          # Set file permissions
+          if ($IsWindows)
           {
-            # Set file permission on Linux
+            # Disable inheritance
+            $acl = Get-Acl -PSPath ./sshkeys/sshkey
+            $acl.SetAccessRuleProtection($true, $true)
+            $acl | Set-Acl -PSPath ./sshkeys/sshkey
+
+            # Modify rules
+            $acl = Get-Acl -PSPath ./sshkeys/sshkey
+            $rule = $acl.Access | ? IdentityReference -eq "BUILTIN\Users"
+            $acl.RemoveAccessRuleAll($rule)
+            $acl | Set-Acl -PSPath ./sshkeys/sshkey
+          }
+          else
+          {
             chmod 600 sshkeys/sshkey
           }
 
