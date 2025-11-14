@@ -42,6 +42,24 @@ jobs:
         run: |
           curl -fsSL https://get.docker.com -o install-docker.sh
           sudo sh install-docker.sh
+          # Keep wsl2 running
+          nohup dbus-launch true >/dev/null 2>&1 &
+
+      - name: Check ssh client config
+        if: false
+        run: |
+          # Per user config
+          if (Test-Path -Path ~/.ssh/config)
+          {
+            Get-Content -Path ~/.ssh/config -Encoding UTF8
+          }
+
+          # System config
+          $systempath = if ($IsWindows) { "$Env:ProgramData/ssh/ssh_config" } else { "/etc/ssh/ssh_config" }
+          if (Test-Path -Path $systempath)
+          {
+            Get-Content -Path $systempath -Encoding UTF8
+          }
 
       - name: Set up a SSH server in Docker
         run: |
@@ -50,11 +68,12 @@ jobs:
           mkdir sshkeys
 
           @"
-          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGazb0M5H6YIIyiZBbNkbfjca6QZszzvx/9G0/SB6Ee5 setpwsh-test-key
+          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGazb0M5H6YIIyiZBbNkbfjca6QZszzvx/9G0/SB6Ee5 migue@Laptop-Barro
           "@ | Out-File -FilePath sshkeys/sshkey.pub -Encoding ASCII
 
-          '${{ secrets.MY_SECRET }}' |
-            Out-File -FilePath sshkeys/sshkey -Encoding ASCII
+          @"
+          ${{ secrets.SSHKEY }}
+          "@ | Out-File -FilePath sshkeys/sshkey -Encoding ASCII
 
           # Set file permissions
           if ($IsWindows)
@@ -89,15 +108,17 @@ jobs:
           & $docker run --rm -d -p "${sshport}:${sshport}" --name sshtest alpine:test
 
           # Check docker is running
-          & $docker ps
+          # & $docker ps
+
+          # Check config and keys
+          # & $docker exec sshtest cat /etc/ssh/sshd_config
+          # & $docker exec sshtest cat /home/sshuser/.ssh/authorized_keys
+          # & $docker exec sshtest ls -l /home/sshuser/.ssh/authorized_keys
 
           # Avoid fingerprint prompt
-          mkdir -p ~/.ssh
+          mkdir ~/.ssh
           (& $docker exec sshtest ssh-keyscan -p $sshport -H localhost) |
             Out-File -Path ~/.ssh/known_hosts -Encoding OEM -Append
-
-          # Test SSH connection
-          # ssh -p $sshport -i sshkeys/sshkey sshuser@localhost whoami
          
           # Set up ssh agent and add private key
           if ($IsWindows)
@@ -124,13 +145,15 @@ jobs:
           ssh-add ./sshkeys/sshkey
 
           # Test SSH connection
-          ssh -p $sshport sshuser@localhost whoami
+          # ssh -p $sshport sshuser@localhost whoami
 
           # Populate environment variable for next steps
-          "SSHPORT=$sshport", "SSHUSER=sshuser" |
+          "SETPWSH_SSHCONFIG=sshuser@localhost:$sshport" |
             Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
 
       - name: Test SSH server in Docker
         run: |
           # Test SSH connection
-          ssh -p $Env:SSHPORT "${Env:SSHUSER}@localhost" whoami
+          $Env:SETPWSH_SSHCONFIG -match '^(?<user>[^@]+)@(?<host>[^:]+):(?<port>\d+)$' | Out-Null
+          $sshcmd = "ssh -p {2} {0}@{1} whoami" -f $matches.user, $matches.host, $matches.port
+          Invoke-Expression $sshcmd

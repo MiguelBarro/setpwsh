@@ -44,7 +44,6 @@ func TearDown()
     " Restore default shell values
     set shell& shellcmdflag& shellpipe& shellredir&
         \ shellquote& shellxquote& shelltemp&
-
 endfunc
 
 """""""""""
@@ -52,21 +51,85 @@ endfunc
 """""""""""
 
 " Set powershell as shell
-func s:set_powershell()
-    "Load the plugin
+func s:set_powershell(use_wsl = 0)
+    " Load the plugin
     packadd setpwsh
-    SetPwsh Desktop NoViewer
+
+    if a:use_wsl && has('win32')
+        SetPwsh Desktop NoViewer SshFromWsl
+    else
+        SetPwsh Desktop NoViewer
+    endif
 
     call assert_equal('powershell', &shell, "SetPwsh")
 endfunc
 
 " Set pwsh as shell
-func s:set_pwsh()
-    "Load the plugin
+func s:set_pwsh(use_wsl = 0)
+    " Load the plugin
     packadd setpwsh
-    SetPwsh NoViewer
+
+    if a:use_wsl && has('win32')
+        SetPwsh NoViewer SshFromWsl
+    else
+        SetPwsh NoViewer
+    endif
 
     call assert_equal('pwsh', &shell, "SetPwsh")
+endfunc
+
+" Load netrw
+func s:load_netrw()
+    filetype plugin on
+
+    packadd netrw
+
+    let plugin = getscriptinfo({'name':'pack.dist.opt.netrw.plugin.netrwPlugin.vim'})
+    if empty(plugin)
+        " old versions, back up to old plugin location
+        runtime plugin/netrwPlugin.vim
+        let plugin = getscriptinfo({'name':'plugin.netrwPlugin.vim'})
+    endif
+
+    doautocmd VimEnter hello
+
+    let plugin = plugin[0].name
+    let plugin = fnamemodify(plugin, ':h') .. "/../autoload/netrw.vim"
+    execute $"source {plugin}"
+endfunc
+
+" Clear netrw
+func s:clear_netrw()
+    filetype plugin off
+
+    " allow reloading netrw
+    unlet! g:loaded_netrw
+    unlet! g:loaded_netrwPlugin
+
+    " Clean netrw global variables
+    echo keys(g:)->filter({_, x -> x =~ "^netrw_"})
+       \ ->foreach({_, x -> execute($"unlet g:{x}")})
+
+    " Clean netrw commands, they are actually banged so it is superfluous
+    echo ["Nread", "Nwrite", "NetUserPass", "Nsource", "Ntree",
+       \  "Explore", "Sexplore", "Hexplore", "Vexplore", "Texplore", "Lexplore"]
+       \ ->filter({_, x -> exists(":" . x)})
+       \ ->foreach({_, x -> execute($"delcommand {x}")})
+
+    " Clean autocmds
+    echo ["FileExplorer", "Network"]
+       \ ->filter({_, x -> exists("#" . x)})
+       \ ->foreach({ _, x -> execute($"autocmd! {x} *")})
+
+    " Clean functions
+    delfunc! NetUserPass
+    " Check if autoload is available
+    let script = getscriptinfo({'name':'autoload.netrw.vim'})
+    if !empty(script)
+        let sid = script[0].sid
+        let script = getscriptinfo({'sid':sid})[0]
+        echo script.functions->foreach({ _, f -> execute($"delfunc {f}")})
+    endif
 endfunc
 
 "Remove BOM from string
