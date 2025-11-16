@@ -28,7 +28,10 @@ func TearDown()
                 \ 'g:setpwsh_ftp_from_wsl',
                 \ 'g:setpwsh_ssh_from_wsl',
                 \ 'g:setpwsh_enable_test',
-                \ 'g:setpwsh_netrw_viewer'
+                \ 'g:setpwsh_netrw_viewer',
+                \ 'g:netrw_ftp_cmd',
+                \ 'g:netrw_ssh_cmd',
+                \ 'g:netrw_scp_cmd'
                 \ ]
 
     for g in globals
@@ -192,6 +195,9 @@ func s:RunTestFileTree()
         enew
     endfor
 
+    " Wipeout all buffers to force reloading from ssh
+    %bwipeout!
+
     " Check and the filetree
     while !empty(files)
         " Pop file
@@ -199,7 +205,6 @@ func s:RunTestFileTree()
         " Load and check contents
         call Readfile(filepath)
         call assert_equal(testline, getline(1), $"File {filepath} contents mismatch")
-        enew
     endwhile
 
     " Wipeout the filetree on error
@@ -451,11 +456,8 @@ endfunc
 func s:netrw_tests()
     call s:CheckSshServer()
     call s:load_netrw()
-    try
-        call s:RunTestFileTree()
-    finally
-        call s:clear_netrw()
-    endtry
+    call s:RunTestFileTree()
+    call s:clear_netrw()
 endfunc
 
 """""""
@@ -529,12 +531,6 @@ if has('win32')
     func Test_setpwsh_shell_error_desktop()
         call s:set_powershell()
         call s:shell_error_tests("Desktop")
-    endfunc
-
-    " Check netrw ssh functionality
-    func Test_netrw_ssh_desktop()
-        call s:set_powershell()
-        call s:netrw_tests()
     endfunc
 
     " Check netrw ssh
