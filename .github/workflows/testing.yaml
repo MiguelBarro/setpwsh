@@ -19,6 +19,7 @@ jobs:
   testing:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
@@ -40,6 +41,137 @@ jobs:
         uses: actions/checkout@v5
         with:
           path: workplace/vim/runtime/pack/SetPwsh
+
+      - name: Install WSL2
+        if: contains(matrix.os, 'windows')
+        uses: Vampire/setup-wsl@v6.0.0
+        with:
+          additional-packages:
+            curl
+            openssh-client
+            dos2unix
+          distribution: Ubuntu-24.04
+          set-as-default: 'true'
+          use-cache: 'true'
+          wsl-version: 2
+
+      - name: Install Docker inside WSL2
+        if: contains(matrix.os, 'windows')
+        shell: wsl-bash {0}
+        run: |
+          curl -fsSL https://get.docker.com -o install-docker.sh
+          sudo sh install-docker.sh
+
+      - name: Set up a SSH server in Docker
+        if: contains(matrix.os, 'windows') || contains(matrix.os, 'ubuntu')
+        run: |
+          # Set up keys
+          pushd workplace/vim/runtime/pack/SetPwsh/.github/workflows
+          mkdir sshkeys
+
+          @"
+          ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGazb0M5H6YIIyiZBbNkbfjca6QZszzvx/9G0/SB6Ee5 migue@Laptop-Barro
+          "@ | Out-File -FilePath sshkeys/sshkey.pub -Encoding ASCII
+
+          @"
+          ${{ secrets.SSHKEY }}
+          "@ | Out-File -FilePath sshkeys/sshkey -Encoding ASCII
+
+          # Set file permissions
+          if ($IsWindows)
+          {
+            # Disable inheritance
+            $acl = Get-Acl -PSPath ./sshkeys/sshkey
+            $acl.SetAccessRuleProtection($true, $true)
+            $acl | Set-Acl -PSPath ./sshkeys/sshkey
+
+            # Modify rules
+            $acl = Get-Acl -PSPath ./sshkeys/sshkey
+            $rule = $acl.Access | ? IdentityReference -eq "BUILTIN\Users"
+            $acl.RemoveAccessRuleAll($rule)
+            $acl | Set-Acl -PSPath ./sshkeys/sshkey
+
+            # Copy the key to WSL2 to allow wsl ssh client usage
+            wsl mkdir '$HOME/sshkeys'
+            wsl cp sshkeys/sshkey '$HOME/sshkeys/sshkey'
+          }
+          else
+          {
+            chmod 600 sshkeys/sshkey
+          }
+
+          # Build docker image with SSH server
+          $docker = $IsWindows ? { wsl -- docker $args 2>$null} : "docker"
+          $base_image = "alpine:latest"
+          $sshport = 42
+
+          & $docker build `
+            --build-arg sshport=$sshport `
+            --build-arg base_image=$base_image `
+            --build-arg pubkey=sshkeys/sshkey.pub -t alpine:test .
+
+          # Run SSH server in background
+          & $docker run --rm -d -p "${sshport}:${sshport}" --name sshtest alpine:test
+
+          # Avoid fingerprint prompt
+          mkdir ~/.ssh
+          (& $docker exec sshtest ssh-keyscan -p $sshport -H localhost) |
+            Out-File -Path ~/.ssh/known_hosts -Encoding OEM -Append
+
+          # Set up ssh agent and add private key
+          if ($IsWindows)
+          {
+            if ((Get-Service ssh-agent).StartType -eq "Disabled")
+            {
+              Set-Service -Name ssh-agent -StartupType Manual
+            }
+            Start-Service ssh-agent
+          }
+          else
+          {
+            (ssh-agent -s | Select-String "^(?<name>.*)=(?<value>[^;]*);").Matches |
+              ForEach-Object {
+                # Extract environment variables
+                $name = ($_.Groups | ? Name -eq "name")
+                $value = ($_.Groups | ? Name -eq "value")
+                # Use locally
+                Invoke-Expression "`$Env:$name=`"$value`""
+                # Persist for next steps
+                "$name=$value" | Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+              }
+          }
+          ssh-add ./sshkeys/sshkey
+
+          # Populate environment variable for next steps
+          "SETPWSH_SSHCONFIG=sshuser@localhost:$sshport" |
+            Out-File -Path $Env:GITHUB_ENV -Encoding OEM -Append
+
+      - name: Set up WSL2
+        if: contains(matrix.os, 'windows')
+        shell: wsl-bash {0}
+        run: |
+          # Keep wsl2 running
+          nohup dbus-launch true >/dev/null 2>&1 &
+
+          # • reuse the tcp connections to avoid handshakes
+          #   it only works if we keep an ssh connection open all the time
+          # • set up client to use the key
+          cat <<EOF > $HOME/.ssh/config
+          Host *
+            ControlMaster auto
+            ControlPath /tmp/%r@%h:%p
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+
+          Host localhost
+              Hostname 127.0.0.1
+              User sshuser
+              IdentityFile $HOME/sshkeys/sshkey
+          EOF
+
+          # set up right key permissions
+          dos2unix $HOME/sshkeys/sshkey
+          sudo chmod 600 $HOME/sshkeys/sshkey
 
       - name: Install Vim
         timeout-minutes: 5
@@ -172,8 +304,14 @@ jobs:
           ) | Set-Content -Path $MakeAll
 
       - name: Run testing
-        timeout-minutes: 5
+        timeout-minutes: 15
         run: |
+          if ($IsWindows)
+          {
+            # Keep alive ssh connection from wsl2 to avoid costly handshakes
+            wsl ssh -Nf -p 42 localhost &
+          }
+
           # Hint plugin location to the tests
           $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime"
 
@@ -181,6 +319,12 @@ jobs:
           Install-Module -Name MarkdownPS -Repository PSGallery -Force
           Import-Module MarkdownPS
           $summary = { Param([String]$binary)
+              # Filter skipped tests
+              (Get-Content -Path messages | % { $skip = $false} {
+                if(!$skip){ $_ }
+                $skip = $_ -match "^\s+Skipped\s*$"
+              }) | Set-Content -Path messages
+              # Extract test execution times
               $Tests = Select-String -Path messages -Pattern "^Executed (?<Test>.*\(\))\s+in\s+(?<Seconds>.*) seconds"
               Remove-Item messages
               $Table = $Tests.Matches | % {

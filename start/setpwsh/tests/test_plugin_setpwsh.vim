@@ -28,7 +28,10 @@ func TearDown()
                 \ 'g:setpwsh_ftp_from_wsl',
                 \ 'g:setpwsh_ssh_from_wsl',
                 \ 'g:setpwsh_enable_test',
-                \ 'g:setpwsh_netrw_viewer'
+                \ 'g:setpwsh_netrw_viewer',
+                \ 'g:netrw_ftp_cmd',
+                \ 'g:netrw_ssh_cmd',
+                \ 'g:netrw_scp_cmd'
                 \ ]
 
     for g in globals
@@ -44,7 +47,6 @@ func TearDown()
     " Restore default shell values
     set shell& shellcmdflag& shellpipe& shellredir&
         \ shellquote& shellxquote& shelltemp&
-
 endfunc
 
 """""""""""
@@ -52,21 +54,161 @@ endfunc
 """""""""""
 
 " Set powershell as shell
-func s:set_powershell()
-    "Load the plugin
+func s:set_powershell(use_wsl = 0)
+    " Load the plugin
     packadd setpwsh
-    SetPwsh Desktop NoViewer
+
+    if a:use_wsl && has('win32')
+        SetPwsh Desktop NoViewer SshFromWsl
+    else
+        SetPwsh Desktop NoViewer
+    endif
 
     call assert_equal('powershell', &shell, "SetPwsh")
 endfunc
 
 " Set pwsh as shell
-func s:set_pwsh()
-    "Load the plugin
+func s:set_pwsh(use_wsl = 0)
+    " Load the plugin
     packadd setpwsh
-    SetPwsh NoViewer
+
+    if a:use_wsl && has('win32')
+        SetPwsh NoViewer SshFromWsl
+    else
+        SetPwsh NoViewer
+    endif
 
     call assert_equal('pwsh', &shell, "SetPwsh")
+endfunc
+
+" Load netrw
+func s:load_netrw()
+    filetype plugin on
+
+    packadd netrw
+
+    let plugin = getscriptinfo({'name':'pack.dist.opt.netrw.plugin.netrwPlugin.vim'})
+    if empty(plugin)
+        " old versions, back up to old plugin location
+        runtime plugin/netrwPlugin.vim
+        let plugin = getscriptinfo({'name':'plugin.netrwPlugin.vim'})
+    endif
+
+    doautocmd VimEnter hello
+
+    let plugin = plugin[0].name
+    let plugin = fnamemodify(plugin, ':h') .. "/../autoload/netrw.vim"
+    execute $"source {plugin}"
+endfunc
+
+" Clear netrw
+func s:clear_netrw()
+    filetype plugin off
+
+    " allow reloading netrw
+    unlet! g:loaded_netrw
+    unlet! g:loaded_netrwPlugin
+
+    " Clean netrw global variables
+    echo keys(g:)->filter({_, x -> x =~ "^netrw_"})
+       \ ->foreach({_, x -> execute($"unlet g:{x}")})
+
+    " Clean netrw commands, they are actually banged so it is superfluous
+    echo ["Nread", "Nwrite", "NetUserPass", "Nsource", "Ntree",
+       \  "Explore", "Sexplore", "Hexplore", "Vexplore", "Texplore", "Lexplore"]
+       \ ->filter({_, x -> exists(":" . x)})
+       \ ->foreach({_, x -> execute($"delcommand {x}")})
+
+    " Clean autocmds
+    echo ["FileExplorer", "Network"]
+       \ ->filter({_, x -> exists("#" . x)})
+       \ ->foreach({ _, x -> execute($"autocmd! {x} *")})
+
+    " Clean functions
+    delfunc! NetUserPass
+    " Check if autoload is available
+    let script = getscriptinfo({'name':'autoload.netrw.vim'})
+    if !empty(script)
+        let sid = script[0].sid
+        let script = getscriptinfo({'sid':sid})[0]
+        echo script.functions->foreach({ _, f -> execute($"delfunc {f}")})
+    endif
+endfunc
+
+" Check test ssh server availability
+func s:CheckSshServer()
+    if exists('$SETPWSH_SSHCONFIG') &&
+      \ $SETPWSH_SSHCONFIG =~# '^[^@]\+@[^:]\+:\d\+$'
+        return
+    endif
+    throw "Skipped: ssh testing environment not configured."
+        \ " Fix by setting $SETPWSH_SSHCONFIG to user@machine:port"
+endfunc
+
+" Make a new remote directory via ssh. Precondition:
+" - s:CheckSshServer() passed
+" - netrw is loaded
+func s:Mkdir(path)
+    let [user, machine, port] = split($SETPWSH_SSHCONFIG, '[@:]')
+    execute($"silent !{g:netrw_ssh_cmd} {g:netrw_sshport} {port} {user}@{machine} mkdir {a:path}")
+    call assert_equal(0, v:shell_error, $"Failed to create dir {a:path} on ssh server")
+endfunc
+
+" Make a new remote directory via ssh. Precondition:
+" - s:CheckSshServer() passed
+" - netrw is loaded
+func s:ForceRemoveDir(dir)
+    let [user, machine, port] = split($SETPWSH_SSHCONFIG, '[@:]')
+    execute($"silent !{g:netrw_ssh_cmd} {g:netrw_sshport} {port} {user}@{machine} rm -rf {a:dir}")
+endfunc
+
+" Create a test file tree on the ssh server, check it and remove.
+" Preconditions:
+" - s:CheckSshServer() passed
+" - netrw is loaded
+func s:RunTestFileTree()
+
+    " Auxiliary lambdas
+    let Newfile = { path -> execute($"w scp://{$SETPWSH_SSHCONFIG}/{path}") }
+    let Readfile = { path -> execute($"e scp://{$SETPWSH_SSHCONFIG}/{path}") }
+
+    enew
+    let user = split($SETPWSH_SSHCONFIG, '[@:]')[0]
+    let path = $"/home/{user}"
+    const testline = "Testing!"
+    let files = []
+
+    " Create the filetree
+    for step in range(1, 10)
+        " Create dir
+        let path .= $"/test{step}"
+        call s:Mkdir(path)
+
+        " Create file
+        let filepath = $"{path}/test{step}.txt"
+        call append(0, testline)
+        call Newfile(filepath)
+        if !assert_equal(0, v:shell_error, $"Failed to create file {filepath} ssh server")
+            call insert(files, filepath)
+        endif
+
+        enew
+    endfor
+
+    " Wipeout all buffers to force reloading from ssh
+    %bwipeout!
+
+    " Check and the filetree
+    while !empty(files)
+        " Pop file
+        let filepath = remove(files, 0)
+        " Load and check contents
+        call Readfile(filepath)
+        call assert_equal(testline, getline(1), $"File {filepath} contents mismatch")
+    endwhile
+
+    " Wipeout the filetree on error
+    call s:ForceRemoveDir($"/home/{user}/test1")
 endfunc
 
 "Remove BOM from string
@@ -310,6 +452,14 @@ endfunc
 " TODO: Cannot check gVim reading stdin because the following does not work:
 " call test_feedinput(":read !$input | \\% { \"Entering $_\" }\<CR>a\<CR>b\<CR>c\<CR>\x04\<CR>")
 
+" Check netrw ssh functionality
+func s:netrw_tests()
+    call s:CheckSshServer()
+    call s:load_netrw()
+    call s:RunTestFileTree()
+    call s:clear_netrw()
+endfunc
+
 """""""
 " Tests
 """""""
@@ -341,7 +491,18 @@ if executable('pwsh')
         call s:shell_error_tests("Core")
     endfunc
 
+    " Check netrw ssh
+    func Test_netrw_ssh_core()
+        call s:set_pwsh()
+        call s:netrw_tests()
+    endfunc
+
 endif " pwsh
+
+" Check netrw ssh with default shell
+func Test_netrw_ssh()
+    call s:netrw_tests()
+endfunc
 
 " executable('powershell') doesn't work because powershell is
 " an alias of pwsh in linux & mac
@@ -370,6 +531,24 @@ if has('win32')
     func Test_setpwsh_shell_error_desktop()
         call s:set_powershell()
         call s:shell_error_tests("Desktop")
+    endfunc
+
+    " Check netrw ssh
+    func Test_netrw_ssh_desktop()
+        call s:set_powershell()
+        call s:netrw_tests()
+    endfunc
+
+    " Check netrw ssh over wsl2
+    func Test_netrw_ssh_wsl_desktop()
+        call s:set_powershell(1)
+        call s:netrw_tests()
+    endfunc
+
+    " Check netrw ssh over wsl2
+    func Test_netrw_ssh_wsl_core()
+        call s:set_pwsh(1)
+        call s:netrw_tests()
     endfunc
 
 endif " powershell
