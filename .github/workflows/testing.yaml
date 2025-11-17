@@ -173,9 +173,6 @@ jobs:
           dos2unix $HOME/sshkeys/sshkey
           sudo chmod 600 $HOME/sshkeys/sshkey
 
-          # Keep alive connection
-          nohup ssh -Nf -p 42 localhost &
-
       - name: Install Vim
         timeout-minutes: 5
         run: |
@@ -307,8 +304,14 @@ jobs:
           ) | Set-Content -Path $MakeAll
 
       - name: Run testing
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
+          if ($IsWindows)
+          {
+            # Keep alive ssh connection from wsl2 to avoid costly handshakes
+            wsl ssh -Nf -p 42 localhost &
+          }
+
           # Hint plugin location to the tests
           $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime"
 
