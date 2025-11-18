@@ -312,7 +312,7 @@ jobs:
           if ($IsWindows)
           {
             # Keep alive ssh connection from wsl2 to avoid costly handshakes
-            wsl ssh -Nf -p 42 localhost &
+            wsl ssh -Nfp 42 localhost
           }
 
           # Hint plugin location to the tests
