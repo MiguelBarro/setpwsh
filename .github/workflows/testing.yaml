@@ -210,8 +210,11 @@ jobs:
             # Fix Makefile to use clang-cl
             Get-Content ../runtime/pack/SetPwsh/.github/workflows/vim_mvc_clang.patch | patch -d .. -p1
 
-            # Fix netrw to use default ssh on windows
-            Get-Content ../runtime/pack/SetPwsh/.github/workflows/netrw_unc.patch | patch -d .. -p1
+            if ([version]$env:RELEASE_VERSION -lt [version]"9.1.1919")
+            {
+              # Fix netrw to use default ssh on windows
+              Get-Content ../runtime/pack/SetPwsh/.github/workflows/netrw_unc.patch | patch -d .. -p1
+            }
 
             # Set up development environment
             $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
