@@ -178,6 +178,9 @@ func s:RunTestFileTree()
     const testline = "Testing!"
     let files = []
 
+    " Wipeout the filetree, maybe a previous attempt failed
+    call s:ForceRemoveDir($"{path}/test1")
+
     " Create the filetree
     for step in range(1, 10)
         " Create dir
@@ -207,8 +210,8 @@ func s:RunTestFileTree()
         call assert_equal(testline, getline(1), $"File {filepath} contents mismatch")
     endwhile
 
-    " Wipeout the filetree on error
-    call s:ForceRemoveDir($"/home/{user}/test1")
+    " Wipeout the filetree
+    call s:ForceRemoveDir($"{path}/test1")
 endfunc
 
 "Remove BOM from string
