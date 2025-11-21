@@ -310,93 +310,80 @@ jobs:
           ) | Set-Content -Path $MakeAll
 
       - name: Run testing
-        timeout-minutes: 15
-        run: |
-          if ($IsWindows)
-          {
-            # Keep alive ssh connection from wsl2 to avoid costly handshakes
-            wsl ssh -Nfp 42 localhost
-          }
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 8
+          max_attempts: 3
+          shell: pwsh # nick-fields/retry disregards job's shell setting
+          command: |
+            if ($IsWindows)
+            {
+              # Keep alive ssh connection from wsl2 to avoid costly handshakes
+              wsl ssh -Nfp 42 localhost
+            }
 
-          # Hint plugin location to the tests
-          $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime"
+            # Hint plugin location to the tests
+            $Env:SETPWSH_RUNTIMEDIR = "$Env:BASEDIR/workplace/vim/runtime"
 
-          # ScriptBlock to summarize test results
-          Install-Module -Name MarkdownPS -Repository PSGallery -Force
-          Import-Module MarkdownPS
-          $summary = { Param([String]$binary)
-              # Filter skipped tests
-              (Get-Content -Path messages | % { $skip = $false} {
-                if(!$skip){ $_ }
-                $skip = $_ -match "^\s+Skipped\s*$"
-              }) | Set-Content -Path messages
-              # Extract test execution times
-              $Tests = Select-String -Path messages -Pattern "^Executed (?<Test>.*\(\))\s+in\s+(?<Seconds>.*) seconds"
-              Remove-Item messages
-              $Table = $Tests.Matches | % {
-                  $test = @{}
-                  $_.Groups | ? Name -NotMatch '\d'  | % {
-                      $test[$_.Name] = $_.Value
-                  }
-                  [PSCustomObject]$test
-              } | Select-Object @{l="Binary"; e={$binary}}, Test, Seconds
-              $Stats = $Table.Seconds | Measure-Object -Sum
-              $Table += [PSCustomObject]@{
-                  Binary = $binary
-                  Test = "Executed " + $Stats.Count + " tests"
-                  Seconds = "{0:F6}" -f $Stats.Sum
+            # ScriptBlock to summarize test results
+            Install-Module -Name MarkdownPS -Repository PSGallery -Force
+            Import-Module MarkdownPS
+            $summary = { Param([String]$binary)
+                # Filter skipped tests
+                (Get-Content -Path messages | % { $skip = $false} {
+                  if(!$skip){ $_ }
+                  $skip = $_ -match "^\s+Skipped\s*$"
+                }) | Set-Content -Path messages
+                # Extract test execution times
+                $Tests = Select-String -Path messages -Pattern "^Executed (?<Test>.*\(\))\s+in\s+(?<Seconds>.*) seconds"
+                Remove-Item messages
+                $Table = $Tests.Matches | % {
+                    $test = @{}
+                    $_.Groups | ? Name -NotMatch '\d'  | % {
+                        $test[$_.Name] = $_.Value
+                    }
+                    [PSCustomObject]$test
+                } | Select-Object @{l="Binary"; e={$binary}}, Test, Seconds
+                $Stats = $Table.Seconds | Measure-Object -Sum
+                $Table += [PSCustomObject]@{
+                    Binary = $binary
+                    Test = "Executed " + $Stats.Count + " tests"
+                    Seconds = "{0:F6}" -f $Stats.Sum
+                }
+                $Table | New-MDTable
+            }
+
+            # Prepare environment
+            if ($IsWindows)
+            {
+              $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+              & $vswhere -find **/Microsoft.VisualStudio.DevShell.dll | Import-Module
+              Enter-VsDevShell -SetDefaultWindowTitle -InstallPath (& $vswhere -property installationPath) `
+                               -StartInPath $Env:TESTDIR -DevCmdArguments '/arch=x64 /host_arch=x64'
+              $make = "nmake"
+              $makefile = "/f", "Make_mvc.mak"
+              $gui = ,"VIMPROG=gvim.exe"
+            }
+            else
+            {
+              cd $Env:TESTDIR
+              $make = "make"
+              $makefile = @()
+              $gui = ,"GUI_FLAG=-g"
+
+              if ($IsLinux)
+              {
+                # Start virtual display to prevent tests from hanging
+                sudo apt-get install -y xvfb
+                Xvfb :42 -screen 0 1024x768x24 &
+                $env:DISPLAY=":42"
+
+                Write-Host "Running a virtual display for GUI tests DISPLAY=$env:DISPLAY"
               }
-              $Table | New-MDTable
-          }
-
-          # Prepare environment
-          if ($IsWindows)
-          {
-            $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-            & $vswhere -find **/Microsoft.VisualStudio.DevShell.dll | Import-Module
-            Enter-VsDevShell -SetDefaultWindowTitle -InstallPath (& $vswhere -property installationPath) `
-                             -StartInPath $Env:TESTDIR -DevCmdArguments '/arch=x64 /host_arch=x64'
-            $make = "nmake"
-            $makefile = "/f", "Make_mvc.mak"
-            $gui = ,"VIMPROG=gvim.exe"
-          }
-          else
-          {
-            cd $Env:TESTDIR
-            $make = "make"
-            $makefile = @()
-            $gui = ,"GUI_FLAG=-g"
-
-            if ($IsLinux)
-            {
-              # Start virtual display to prevent tests from hanging
-              sudo apt-get install -y xvfb
-              Xvfb :42 -screen 0 1024x768x24 &
-              $env:DISPLAY=":42"
-
-              Write-Host "Running a virtual display for GUI tests DISPLAY=$env:DISPLAY"
             }
-          }
 
-          Write-Host "Executing tests: $make $makefile test_plugin_setpwsh"
-          & $make @makefile test_plugin_setpwsh
-
-          if (Test-Path -Path messages)
-          {
-            # Get-Content -Path messages
-            if ( Select-String -Path messages -Pattern 'FAILED' )
-            {
-              throw "Some tests failed!!!"
-            }
-            & $summary -binary "vim" |
-              Out-File -Path $Env:GITHUB_STEP_SUMMARY -Encoding OEM -Append
-          }
-
-          # check GUI binary availability and headless environment
-          if (vim --version | Select-String -Pattern 'with GTK. GUI|GUI/console')
-          {
-            Write-Host "Executing tests: $make $makefile $gui test_plugin_setpwsh"
-            & $make @makefile @gui test_plugin_setpwsh
+            Write-Host "Executing tests: $make $makefile test_plugin_setpwsh"
+            & $make @makefile test_plugin_setpwsh
 
             if (Test-Path -Path messages)
             {
@@ -405,17 +392,34 @@ jobs:
               {
                 throw "Some tests failed!!!"
               }
-
-              & $summary -binary "gvim" |
+              & $summary -binary "vim" |
                 Out-File -Path $Env:GITHUB_STEP_SUMMARY -Encoding OEM -Append
             }
-          }
-          else
-          {
-            $msg = "No GUI support in this vim build. Skipping GUI tests."
-            Write-Warning $msg
-            "> [!WARNING]", "> $msg" |
-              Out-File -Path $Env:GITHUB_STEP_SUMMARY -Encoding OEM -Append
-          }
+
+            # check GUI binary availability and headless environment
+            if (vim --version | Select-String -Pattern 'with GTK. GUI|GUI/console')
+            {
+              Write-Host "Executing tests: $make $makefile $gui test_plugin_setpwsh"
+              & $make @makefile @gui test_plugin_setpwsh
+
+              if (Test-Path -Path messages)
+              {
+                # Get-Content -Path messages
+                if ( Select-String -Path messages -Pattern 'FAILED' )
+                {
+                  throw "Some tests failed!!!"
+                }
+
+                & $summary -binary "gvim" |
+                  Out-File -Path $Env:GITHUB_STEP_SUMMARY -Encoding OEM -Append
+              }
+            }
+            else
+            {
+              $msg = "No GUI support in this vim build. Skipping GUI tests."
+              Write-Warning $msg
+              "> [!WARNING]", "> $msg" |
+                Out-File -Path $Env:GITHUB_STEP_SUMMARY -Encoding OEM -Append
+            }
 
 # vim: cuc sw=2 sts=2 et
