@@ -1,7 +1,7 @@
 # vim_pwsh_proxy.ps1
 # Expects:
 #   set shell=powershell (or set shell=pwsh)
-#   let &shellcmdflag="-NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File \"" . s:auxshellscriptname . '"' 
+#   let &shellcmdflag="-NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File \"" . s:auxshellscriptname . '"'
 #   set shellquote=
 #   set shellxquote=(
 #   set shellredir=>%s
@@ -24,9 +24,9 @@ try
         }
     }
 
-    $encoding += '[Console]::InputEncoding = $OutputEncoding;' 
-    $encoding += '[Console]::OutputEncoding = $OutputEncoding;' 
-    $encoding += '$PSDefaultParameterValues["*:Encoding"] = "{0}";' -f $Env:setpwsh_encoding 
+    $encoding += '[Console]::InputEncoding = $OutputEncoding;'
+    $encoding += '[Console]::OutputEncoding = $OutputEncoding;'
+    $encoding += '$PSDefaultParameterValues["*:Encoding"] = "{0}";' -f $Env:setpwsh_encoding
 
     Invoke-Expression -Command $encoding
 
@@ -60,12 +60,12 @@ try
             $cmd = $cat + " | % { " + $cmd + " } " + $redir
         }
         elseif ($is_input)
-        { # use script object to enable $input
+        {
             $cmd = $cat + " | & { " + $cmd + " } " + $redir
         }
         else
-        { # send in bulk
-            $cmd = $cat + " | " + $cmd + " " + $redir
+        { # use script object to enable $input and avoid redirection errors (see patch 9.2.0006)
+            $cmd = $cat + " | & { `$input | " + $cmd + " } " + $redir
         }
 
         $ErrorActionPreference = "Stop"
@@ -73,7 +73,7 @@ try
     }
     else
     {
-        if ($cmdline -match "\((?<cmd>.*)(?<redir> >.*)\)$")
+        if ($cmdline -match "\(& {(?<cmd>.*)}(?<redir> >.*)\)$")
         {
             $cmd = $matches.cmd
             $redir = $matches.redir
@@ -95,6 +95,10 @@ try
 
         if ($redir)
         {
+            # allow multiple expressions (see patch 9.2.0006)
+            # redirection prevents error propagation
+            $cmd = "& { `$ErrorActionPreference = 'Stop'; try { $cmd } catch { exit 1 }" 
+            $cmd += '; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
             $cmd += $redir
         }
 
@@ -102,7 +106,6 @@ try
         $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($encoding + $cmd))
         & $proc.ProcessName -NoLogo -NoProfile -ExecutionPolicy Bypass `
                             -NonInteractive -EncodedCommand $b64_cmd
-
     }
 
     # Unlike powershell core, BOM emission on redirection cannot be disabled for Desktop edition.
@@ -124,7 +127,7 @@ try
                 $content | Select-Object -Skip $Length |
                     Set-Content -Path $file -Encoding Byte
             }
-        }         
+        }
     }
 
     # propagate error level

@@ -43,22 +43,18 @@ try
         $indec = '$PSStyle.OutputRendering = "PlainText";'
     }
 
-    # Extract the command to execute
-    if ($cmdline -match '\(& { (.*) }.*\)' -or $cmdline -match '\((.*)\)$')
-    {
-        $cmd = $matches[1]
-    }
-    else
-    {
-        throw "Unexpected command line: $cmdline"
-    }
+    $outdec = "2>&1 | Out-String -Stream"
+    $filter = $cmdline -match "\(\(.*\)\)$"
+    if ($filter) { $offset = 2 } else { $offset = 1 } # desktop version lacks ternary operator ?:
+    $cmd = $cmdline.SubString($cmdline.IndexOf("(") + $offset)
+    $cmd = $cmd.SubString(0, $cmd.Length - $offset)
 
     # Check for redirection
-    if ($cmdline -match '>(\S*)\)$')
+    if ($cmd -match '\((.*)\) >(\S*)$')
     {
-        # avoid multiple expression error (see patch 9.2.0006)
-        $redir_file = $matches[1]
-        $cmd = '& {{ {0} }} >{1}' -f $cmd, $redir_file
+        # remove inner parentheses to avoid error (see patch 9.2.0006)
+        $cmd = '& {{ {0} }} >{1}' -f $matches[1], $matches[2]
+        $redir_file = $matches[2]
     }
     else
     {
