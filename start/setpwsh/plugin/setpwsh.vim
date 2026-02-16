@@ -5,7 +5,7 @@ if exists('g:loaded_setpwsh') || &cp
   finish
 endif
 
-let g:loaded_setpwsh = '1.1.1' " version number
+let g:loaded_setpwsh = '1.1.8' " version number
 
 " dummy version replaced by the actual ones if possible
 command -nargs=* SetPwsh
@@ -81,7 +81,11 @@ function s:cspwsh(...)
     return ["Desktop", "FtpFromWsl", "SshFromWsl", "NoViewer"]
 endfunction
 
-let s:script_dir = expand('<sfile>:p:h') .. '/../scripts/'
+if has("patch-9.2.0006")
+    let s:script_dir = expand('<sfile>:p:h') .. '/../scripts/'
+else
+    let s:script_dir = expand('<sfile>:p:h') .. '/../scripts/pre_9.2.0006'
+endif
 
 if has('win32')
 
