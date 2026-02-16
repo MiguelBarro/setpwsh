@@ -84,7 +84,7 @@ endfunction
 if has("patch-9.2.0006")
     let s:script_dir = expand('<sfile>:p:h') .. '/../scripts/'
 else
-    let s:script_dir = expand('<sfile>:p:h') .. '/../scripts/pre_9.2.0006'
+    let s:script_dir = expand('<sfile>:p:h') .. '/../scripts/pre_9.2.0006/'
 endif
 
 if has('win32')
