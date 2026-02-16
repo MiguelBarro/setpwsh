@@ -20,7 +20,7 @@ endfunc
 " After each test remove the plugin
 func TearDown()
 
-    " Unload the plugin 
+    " Unload the plugin
     let globals = [
                 \ 'g:loaded_setpwsh',
                 \ 'g:setpwsh_shell',
@@ -261,6 +261,25 @@ func s:bang_tests(shellname)
         let output = split(trim(output), '\r\n')
         call assert_equal(gref , output[0:4], a:shellname)
     endif
+
+    " Check using multiple expressions
+    enew!
+    const mref = ['123', '456']
+
+    if has("gui_running")
+        redir => output
+        exe "normal :!echo 123; echo 456\<CR>\<CR>"
+        redir END
+
+        " let output = split(output, "\<CR>\<LF>")
+        let output = split(output, '\r\n')
+        call assert_equal(mref, output[1:2], a:shellname)
+    endif
+
+    " Check read from multiple expressions
+    read !echo 123; echo 456
+    call assert_equal(mref, getline(2, 3), a:shellname)
+
 endfunc
 
 "system() testing helper function. Precondition: plugin already loaded
@@ -281,13 +300,13 @@ func s:system_tests(shellname)
     let output = split(output)
     call assert_equal(ref , output, a:shellname)
 
-    let output = system('% { "-->$_<--" }', "vim") 
+    let output = system('% { "-->$_<--" }', "vim")
     if a:shellname ==# "Desktop" && has("gui_running")
         let output = s:remove_bom(output)
     endif
     call assert_equal("-->vim<--" , trim(output), a:shellname)
 
-    let output = system('% { "-->$_<--" }', ref) 
+    let output = system('% { "-->$_<--" }', ref)
     if a:shellname ==# "Desktop" && has("gui_running")
         let output = s:remove_bom(output)
     endif
@@ -299,12 +318,20 @@ func s:system_tests(shellname)
 "   " Check systemlist()
 "   let output = systemlist("1..5 | % {[char]($_+96)}")
 "   call assert_equal(ref , output, "powershell")
- 
+
     " Backtick execution is a particular case of system()
     " open this very file
     let this_script = expand("<script>")
     exe $"view `(Get-Item -Path {this_script}).FullName`"
     call assert_equal(bufnr(''), bufnr(this_script), a:shellname)
+
+    " Check using multiple expressions
+    let output = system("echo 123; echo 456")
+    if a:shellname ==# "Desktop" && has("gui_running")
+        let output = s:remove_bom(output)
+    endif
+    let output = split(output)
+    call assert_equal(['123', '456'] , output, a:shellname)
 
 endfunc
 
@@ -407,7 +434,7 @@ func s:shell_error_tests(shellname)
 
     call system($"Get-Item -Path {this_script}")
     call assert_equal(0, v:shell_error, a:shellname)
- 
+
     " Errors on bang commands
     " Check error on unknown command
     exe "normal :!unknown-command\<CR>\<CR>"
