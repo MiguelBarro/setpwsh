@@ -64,19 +64,15 @@ try
                ForEach-Object { $res = $cmd } { $res = $res.Remove($_.Index, $_.Length) }
 
         $is_pipe = $res -match '\$_\b'
-        $is_input = $res -match '\$input\b'
+        # $is_input = $res -match '\$input\b'
 
         if ($is_pipe)
         { # execute expression per-line
             $cmd = $cat + " | % { " + $cmd + " } " + $redir
         }
-        elseif ($is_input)
-        { # use script object to enable $input
-            $cmd = $cat + " | & { " + $cmd + " } " + $redir
-        }
         else
-        { # send in bulk
-            $cmd = $cat + " | " + $cmd + " " + $redir
+        { # use script object to enable $input and avoid redirection errors (see patch 9.2.0006)
+            $cmd = $cat + " | & { " + $cmd + " } " + $redir
         }
 
         $ErrorActionPreference = "Stop"
@@ -84,7 +80,7 @@ try
     }
     else
     {
-        if ($cmdline -match "\((?<cmd>.*)(?<redir> >.*)\)$")
+        if ($cmdline -match "\((?<cmd>.*)(?<redir>>.*)\)$")
         {
             $cmd = $matches.cmd
             $redir = $matches.redir
@@ -98,8 +94,23 @@ try
             throw "unexpected cmdline: $cmdline"
         }
 
+        # trimming external parenthesis (interfere with pwsh redirection)
+        while ($cmd -match "\s*\((?<cmd>.*)\)\s*$")
+        {
+            $cmd = $matches.cmd
+        }
+
+        if ($redir)
+        {
+            # allow multiple expressions (see patch 9.2.0006)
+            # redirection prevents error propagation
+            $cmd = "& { `$ErrorActionPreference = 'Stop'; try { $cmd } catch { exit 1 }" 
+            $cmd += '; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
+            $cmd += $redir
+        }
+
         # allow stdin forwarding under binary demand
-        $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
+        $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($encoding + $cmd))
         & $pwsh_cmd $pwsh_arg -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $b64_cmd
     }
 

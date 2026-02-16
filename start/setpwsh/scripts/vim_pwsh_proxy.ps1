@@ -53,19 +53,15 @@ try
                ForEach-Object { $res = $cmd } { $res = $res.Remove($_.Index, $_.Length) }
 
         $is_pipe = $res -match '\$_\b'
-        $is_input = $res -match '\$input\b'
+        # $is_input = $res -match '\$input\b'
 
         if ($is_pipe)
         { # execute expression per-line
             $cmd = $cat + " | % { " + $cmd + " } " + $redir
         }
-        elseif ($is_input)
-        { # use script object to enable $input
-            $cmd = $cat + " | & { " + $cmd + " } " + $redir
-        }
         else
-        { # send in bulk
-            $cmd = $cat + " | " + $cmd + " " + $redir
+        { # use script object to enable $input and avoid redirection errors (see patch 9.2.0006)
+            $cmd = $cat + " | & { " + $cmd + " } " + $redir
         }
 
         $ErrorActionPreference = "Stop"
@@ -95,6 +91,9 @@ try
 
         if ($redir)
         {
+            # allow multiple expressions (see patch 9.2.0006)
+            $cmd = "& { `$ErrorActionPreference = 'Stop'; try { $cmd } catch { exit 1 }" 
+            $cmd += '; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
             $cmd += $redir
         }
 

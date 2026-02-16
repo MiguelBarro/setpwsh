@@ -50,9 +50,11 @@ try
     $cmd = $cmd.SubString(0, $cmd.Length - $offset)
 
     # Check for redirection
-    if ($cmd -match '>(\S*)$')
+    if ($cmd -match '\((.*)\) >(\S*)$')
     {
-        $redir_file = $matches[1]
+        # remove inner parentheses to avoid error (see patch 9.2.0006)
+        $cmd = '& {{ {0} }} >{1}' -f $matches[1], $matches[2]
+        $redir_file = $matches[2]
     }
     else
     {
