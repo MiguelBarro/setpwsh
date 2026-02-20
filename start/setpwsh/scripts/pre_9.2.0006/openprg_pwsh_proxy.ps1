@@ -19,7 +19,7 @@ else
     $cmdline = (Get-Process -Pid $pid).CommandLine
 }
 
-if ($cmdline -match "$($MyInvocation.MyCommand.Name)\s+(`"?)(.*)\1")
+if ($cmdline -match "openprg_pwsh_proxy.ps1`"?\s+(`"?)(.*)\1")
 {
     $filename = $matches[2]
     Start-Process -Verb Open -FilePath (Get-Item -Path $filename)

@@ -512,6 +512,7 @@ may slow down startup is disabled by default.
 ==============================================================================
 7. History						       *setpwsh-history*
 
+	v1.1.9: Feb 20  2026    * (Miguel Barro) Adapt to vim patch 9.1.2002
 	v1.1.8: Feb 16, 2026    * (Miguel Barro) Adapt to vim patch 9.2.0006
 	v1.1.6: Oct 21, 2025    * (Miguel Barro) Fix BOM for powershell.
 				  Fix v:shell_error. CI testing.
