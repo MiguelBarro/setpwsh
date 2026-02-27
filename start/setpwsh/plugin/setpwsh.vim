@@ -5,7 +5,7 @@ if exists('g:loaded_setpwsh') || &cp
   finish
 endif
 
-let g:loaded_setpwsh = '1.1.9' " version number
+let g:loaded_setpwsh = '1.1.10' " version number
 
 " dummy version replaced by the actual ones if possible
 command -nargs=* SetPwsh
@@ -169,9 +169,7 @@ if has('win32')
             if exists('g:Openprg')
                 echoe "setpwsh plugin: Openprg is already set and is not replaced"
             else
-                " After patch 9.1.2002 we need to hint cmd.exe start to avoid launching a console windows
-                let noconsole = has("patch-9.1.2002") ? ' \b ' : ''
-                let g:Openprg = noconsole . &shell . ' -NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "'
+                let g:Openprg = &shell . ' -NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "'
                     \   . s:script_dir . 'openprg_pwsh_proxy.ps1"'
             endif
         endif

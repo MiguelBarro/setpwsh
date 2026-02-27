@@ -21,6 +21,6 @@ else
 
 if ($cmdline -match "openprg_pwsh_proxy.ps1`"?\s+(`"?)(.*)\1")
 {
-    $filename = $matches[2]
-    Start-Process -Verb Open -FilePath (Get-Item -Path $filename)
+    $file = Get-Item -Path $matches[2]
+    Start-Process -Verb Open -FilePath $file -Wait
 }

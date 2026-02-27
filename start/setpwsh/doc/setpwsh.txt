@@ -20,13 +20,13 @@ Copyright: Copyright (C) 2024 Miguel Barro                   *setpwsh-copyright*
 3.  Installation......................................: |setpwsh-installation|
 4.  Usage.............................................: |setpwsh-usage|
         OPTIONS.......................................: |setpwsh-options|
-	ENVIRONMENT VARIABLES.........................: |setpwsh-env-vars|
+        ENVIRONMENT VARIABLES.........................: |setpwsh-env-vars|
         COMMANDS......................................: |setpwsh-commands|
         BANG COMMANDS.................................: |setpwsh-!cmd|
         INVOKING PS1 SCRIPTS..........................: |setpwsh-ps1|
         GVIM ON WINDOWS...............................: |setpwsh-gvim-win|
         SSH SCRIPTS FOR WSL...........................: |setpwsh-ssh|
-	VIM9 COMMON & NETRW VIEWER....................: |setpwsh-viewer|
+        VIM9 COMMON & NETRW VIEWER....................: |setpwsh-viewer|
 5.  Internals.........................................: |setpwsh-internals|
 6.  Issues............................................: |setpwsh-issues|
 
@@ -159,11 +159,11 @@ The following options are only meaningful in windows:
 
   *g:setpwsh_netrw_viewer*   If 1 replaces default document viewer. Defaults 1.
 
-ENVIRONMENT VARIABLES					    *setpwsh-env-vars*
+ENVIRONMENT VARIABLES                                       *setpwsh-env-vars*
 
   *$setpwsh_encoding*        Decides powershell binary encoding for input and
-			   output pipes. Possible values: ascii, utf7, utf8,
-			   unicode, uft32. Defaults to 'utf8'.
+                           output pipes. Possible values: ascii, utf7, utf8,
+                           unicode, uft32. Defaults to 'utf8'.
 
 COMMANDS                                           *setpwsh-commands* *:SetPwsh*
 
@@ -510,15 +510,16 @@ This will check if the plugin works before setting it up. Because this test
 may slow down startup is disabled by default.
 
 ==============================================================================
-7. History						       *setpwsh-history*
+7. History                                                     *setpwsh-history*
 
-	v1.1.9: Feb 20  2026    * (Miguel Barro) Adapt to vim patch 9.1.2002
-	v1.1.8: Feb 16, 2026    * (Miguel Barro) Adapt to vim patch 9.2.0006
-	v1.1.6: Oct 21, 2025    * (Miguel Barro) Fix BOM for powershell.
-				  Fix v:shell_error. CI testing.
-	v1.1.5: May 16, 2025	* (Miguel Barro) Fix pwsh as dotnet tool on linux.
-	v1.1.1: Mar 22, 2025	* (Miguel Barro) Fix |netrw| viewer on Windows.
-	v1.1:	Oct 06, 2024	* (Miguel Barro) Fix emoji rendering by
-				  modifying pwsh pipe text encoding.
+        v1.1.10: Feb 27  2026   * (Miguel Barro) Partially revert v1.1.9 fix
+        v1.1.9:  Feb 20  2026   * (Miguel Barro) Adapt to vim patch 9.1.2002
+        v1.1.8:  Feb 16, 2026   * (Miguel Barro) Adapt to vim patch 9.2.0006
+        v1.1.6:  Oct 21, 2025   * (Miguel Barro) Fix BOM for powershell.
+                                  Fix v:shell_error. CI testing.
+        v1.1.5:  May 16, 2025   * (Miguel Barro) Fix pwsh as dotnet tool on linux.
+        v1.1.1:  Mar 22, 2025   * (Miguel Barro) Fix |netrw| viewer on Windows.
+        v1.1:    Oct 06, 2024   * (Miguel Barro) Fix emoji rendering by
+                                  modifying pwsh pipe text encoding.
 
  vim:tw=78:ts=8:noet:ft=help:norl:
