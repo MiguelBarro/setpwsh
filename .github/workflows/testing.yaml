@@ -253,7 +253,7 @@ jobs:
               do
               {
                 sudo apt update
-                sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk2.0-dev libncurses-dev
+                sudo apt-get install -y libx11-dev libxt-dev libxpm-dev libgtk-3-dev libncurses-dev
               }
               while ($LASTEXITCODE -ne 0)
             }
