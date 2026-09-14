@@ -88,7 +88,7 @@ try
         }
 
         # trimming external parenthesis (interfere with pwsh redirection)
-        while ($cmd -match "\s*\((?<cmd>.*)\)\s*$")
+        while ($cmd -match "^\s*\((?<cmd>[^\)]*\(.*)\)\s*$")
         {
             $cmd = $matches.cmd
         }
