@@ -99,9 +99,10 @@ try
         }
 
         # trimming external parenthesis (interfere with pwsh redirection)
-        while ($cmd -match "\s*\((?<cmd>.*)\)\s*$")
+        if ($cmd -match "\s*\(.*\)\s*$")
         {
-            $cmd = $matches.cmd
+            . $PSScriptRoot/utils.ps1
+            $cmd = Remove-ExternalParenthesis -Expression $cmd
         }
 
         if ($redir)
