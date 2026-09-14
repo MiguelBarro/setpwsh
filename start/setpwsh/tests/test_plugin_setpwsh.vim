@@ -280,6 +280,10 @@ func s:bang_tests(shellname)
     read !echo 123; echo 456
     call assert_equal(mref, getline(2, 3), a:shellname)
 
+    " Check parenthesis proper management
+    read !(1..10).Where({ $_ -eq 2})
+    call assert_equal('2' , getline(4), a:shellname)
+
 endfunc
 
 "system() testing helper function. Precondition: plugin already loaded
