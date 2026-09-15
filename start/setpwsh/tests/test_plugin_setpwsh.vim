@@ -290,6 +290,9 @@ func s:bang_tests(shellname)
     read !(((1..10)).Where(({ $_ -eq 3})))
     call assert_equal('3' , getline(6), a:shellname)
 
+    read !("(")
+    call assert_equal('(' , getline(7), a:shellname)
+
 endfunc
 
 "system() testing helper function. Precondition: plugin already loaded
