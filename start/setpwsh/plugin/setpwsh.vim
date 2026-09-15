@@ -5,7 +5,7 @@ if exists('g:loaded_setpwsh') || &cp
   finish
 endif
 
-let g:loaded_setpwsh = '1.1.10' " version number
+let g:loaded_setpwsh = '1.1.11' " version number
 
 " dummy version replaced by the actual ones if possible
 command -nargs=* SetPwsh

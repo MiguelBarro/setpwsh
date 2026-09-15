@@ -512,6 +512,7 @@ may slow down startup is disabled by default.
 ==============================================================================
 7. History                                                     *setpwsh-history*
 
+        v1.1.11: Sep 09  2026   * (Miguel Barro) Fix brackets issue on vim.
         v1.1.10: Feb 27  2026   * (Miguel Barro) Partially revert v1.1.9 fix
         v1.1.9:  Feb 20  2026   * (Miguel Barro) Adapt to vim patch 9.1.2002
         v1.1.8:  Feb 16, 2026   * (Miguel Barro) Adapt to vim patch 9.2.0006
