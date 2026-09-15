@@ -2,50 +2,67 @@ function Remove-ExternalParenthesis
 {
     param ( [string]$Expression)
 
-    $levels = @{}
-    $icmd = $Expression
-    $iteration = -1
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($Expression, [ref]$tokens, [ref]$errors)
 
-    # Extract all parenthesis groups
-    while ($icmd -match "[\(\)]+")
+    if ($errors)
     {
-        $iteration += 1
-        $ms = Select-String -InputObject $icmd -AllMatches -Pattern "\(([^\(\)]*)\)"
-        $levels[$iteration] = $ms.Matches
-        $chars = $icmd.ToCharArray()
-        foreach ($m in $ms.Matches)
-        {
-            foreach ($index in (1..$m.Length).foreach{ $_ + $m.Index -1})
-            {
-                $chars[$index] = 'X'
-            }
-        }
-        $icmd = -join $chars
+        Write-Error $errors
+        return $Expression
     }
 
-    # Select the best match
-    $sel = $null
-    foreach ($level in $iteration..0)
-    {
-        $m = $levels[$level]
-        if ($m.Count -eq 1)
-        {
-            $discarded = $Expression.Remove($m[0].Index, $m[0].Length)
-            if ($discarded -match "^[\(\)\s]*$")
-            {
-                $sel = $m[0]
+    # filter out unnecessary tokens
+    $bracketTokens = $tokens | ? {
+        $_.Kind -eq [System.Management.Automation.Language.TokenKind]::LParen -or
+        $_.Kind -eq [System.Management.Automation.Language.TokenKind]::RParen
+        } | Sort-Object { $_.Extent.StartOffset }
+
+    # Map matching brackets
+    $bracketStack = @()
+    $bracketMap = @{}
+
+    foreach ($token in $bracketTokens) {
+        $tokenPos = $token.Extent.StartOffset
+
+        if ($token.Kind -eq [System.Management.Automation.Language.TokenKind]::LParen) {
+            # Opening bracket - push to stack
+            $bracketStack += $tokenPos
+        }
+        elseif ($token.Kind -eq [System.Management.Automation.Language.TokenKind]::RParen) {
+            # Closing bracket - pop from stack and create mapping
+            if ($bracketStack.Count -gt 0) {
+                $matchingOpen = $bracketStack[-1]
+                switch ($bracketStack.Count) {
+                    1 { $bracketStack = @() }
+                    2 { $bracketStack = @($bracketStack[0]) }
+                    default { $bracketStack = $bracketStack[0..($bracketStack.Count-2)] }
+                }
+
+                # Create mapping
+                $bracketMap[$matchingOpen] = $tokenPos
             }
         }
+    }
+
+
+    $sel = $null
+    foreach ($key in ($bracketMap.keys | sort))
+    {
+        if ($Expression.Remove($key, $bracketMap[$key] - $key + 1) -match "^[\(\)\s]*$")
+        { # valid external brackets
+            $sel = $key
+        }
         else
-        {
-            # More than one parenthesis in a level ... we are done
+        { # only inner brackets beyond
             break
         }
     }
 
-    if ($sel)
+    # return the contents of the smaller external parentheses
+    if ($sel -ne $null)
     {
-        $Expression = $Expression.substring($sel.Index + 1, $sel.Length - 2)
+        $Expression = $Expression.substring($sel + 1, $bracketMap[$sel] - $sel - 1)
     }
 
     return $Expression
