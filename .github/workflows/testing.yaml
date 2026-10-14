@@ -44,7 +44,7 @@ jobs:
 
       - name: Install WSL2
         if: contains(matrix.os, 'windows')
-        uses: Vampire/setup-wsl@v7.1.0
+        uses: Vampire/setup-wsl@v7.2.0
         with:
           additional-packages:
             curl
