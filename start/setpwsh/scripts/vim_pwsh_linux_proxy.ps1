@@ -1,7 +1,7 @@
 # vim_pwsh_linux_proxy.ps1
 # Expects:
 #   set shell=pwsh
-#   let &shellcmdflag="-NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File vim_pwsh_linux_proxy.ps1 
+#   let &shellcmdflag="-NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File vim_pwsh_linux_proxy.ps1"
 #   set shellquote=
 #   set shellxquote=(
 #   set shellredir=>%s
@@ -109,14 +109,25 @@ try
         {
             # allow multiple expressions (see patch 9.2.0006)
             # redirection prevents error propagation
-            $cmd = "& { `$ErrorActionPreference = 'Stop'; try { $cmd } catch { exit 1 }" 
-            $cmd += '; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
-            $cmd += $redir
+            $newCmd = "try { & { `$ErrorActionPreference = 'Stop'; $cmd;" 
+            $newCmd += 'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
+            $newCmd += $redir
+            $newCmd += "} catch [System.IO.DirectoryNotFoundException] { exit 42 } catch { exit 1 }" 
+        }
+        else
+        {
+            $newCmd = $cmd
         }
 
         # allow stdin forwarding under binary demand
-        $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($encoding + $cmd))
+        $b64_cmd = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($encoding + $newCmd))
         & $pwsh_cmd $pwsh_arg -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $b64_cmd
+
+        # if there are redirection issues force a throw
+        if ($LASTEXITCODE -eq 42)
+        {
+            Invoke-Expression -Command "$cmd $redir"
+        }
     }
 
     # propagate error level
@@ -124,6 +135,60 @@ try
 }
 catch
 {
-    $_.ToString()
-    exit 1
+    $ExceptionType = $_.Exception.GetType().FullName
+    $ExceptionMessage = $_.Exception.Message
+
+    switch ($ExceptionType)
+    {
+        "System.Management.Automation.ItemNotFoundException"
+        {
+            if ($ExceptionMessage -notmatch "Cannot find path '(?<path>.*)' because it does not exist.")
+            {
+                "Invalid path for input pipe file"
+                exit 41
+            }
+            $missingPath = $matches['path']
+        }
+        "System.IO.DirectoryNotFoundException"
+        {
+            if ($ExceptionMessage -notmatch "Could not find a part of the path '(?<path>.*)'")
+            {
+                "Invalid path for output pipe file"
+                exit 42
+            }
+            $missingPath = $matches['path']
+        }
+        default
+        {
+            $_.ToString()
+            exit 1
+        }
+    }
+
+    # It may be a cygwin path, try to convert it to windows path
+    if (-not ($cygpath = gcm cygpath -ErrorAction SilentlyContinue))
+    {
+        "Invalid path: $missingPath. CygPath is not available as fallback."
+        exit 43
+    }
+
+    # powershell may have modified the path, retrieve original
+    $leaf = Split-Path -Leaf $missingPath
+
+    if ($cmdline -notmatch "(?:Get-Content|Out-File|>)\s*(?<originalPath>\S*$leaf[`"']*)")
+    {
+        "Cannot find original path for missing file: $missingPath on command line: $cmdline"
+        exit 44
+    }
+    $originalPath = $matches['originalPath']
+
+    # Use cygpath to provide windows path
+    $path = & $cygpath.source -w $originalPath
+
+    # Replace the missing path in the command line
+    $fix = $cmdline -replace [regex]::Escape($originalPath), "'$path'"
+
+    # Retry the command with the converted path
+    $pwsh_cmd = $null
+    & $PSCommandPath $fix
 }
