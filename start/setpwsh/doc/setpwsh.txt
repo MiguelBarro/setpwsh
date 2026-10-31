@@ -29,6 +29,8 @@ Copyright: Copyright (C) 2024 Miguel Barro                   *setpwsh-copyright*
         VIM9 COMMON & NETRW VIEWER....................: |setpwsh-viewer|
 5.  Internals.........................................: |setpwsh-internals|
 6.  Issues............................................: |setpwsh-issues|
+	WINDOWS NETWORKING ISSUES.....................: |setpwsh-win-networking|
+	CYGWIN REDIRECTION ISSUES.....................: |setpwsh-cygwin|
 
 ==============================================================================
 2. Motivation                                               *setpwsh-motivation*
@@ -411,7 +413,7 @@ introduced a `ForEach-Object` Cmdlet to process it: >
    <prolog> | ForEach-Object { <commands containing $_> } <epilog>
 
 Here `prolog` is used to setup and feed the pipeline. In vim files are used
-for filtering and the `prolog` will use the Cmdlet *Get-Content*. On gVim
+for filtering and the `prolog` will use the Cmdlet `Get-Content`. On gVim
 pipes are used and the `prolog` will use the `$input` automatic variable to
 retrieve the stdin contents to filter. Besides gVim will do some set up as
 changing the powershell rendering style (`$PSStyle.OutputRendering`). This is
@@ -509,9 +511,31 @@ enabled using: >
 This will check if the plugin works before setting it up. Because this test
 may slow down startup is disabled by default.
 
+CYGWIN REDIRECTION ISSUES					*setpwsh-cygwin*
+
+`Cygwin` is a popular Unix-like environment for Windows. Many tools, such as
+`git`, `bash` and `gcc`, rely on it.
+
+The version Vim distributed with `Cygwin` is a full-fledge Unix build that runs
+as a Win32 binary.
+
+Unfortunately, it works properly only with the `Cygwin Bash` shell because
+`Cygwin` uses a POSIX path translation layer for the Windows filesystem, which
+breaks Vim's redirection features when used with other shells.
+
+This plugin fixes the redirection issue, allowing |filter|, |:read!|, and |:write_c|
+to work correctly again.
+
+Unfortunately, `non-Cygwin` executables and Powershell `cmdlets` that accept path
+arguments do not understand `Cygwin` paths and require native Windows paths instead.
+
+`Cygwin` provides a dedicated utility: `cygpath` to convert paths between Windows
+and `Cygwin` formats.
+
 ==============================================================================
 7. History                                                     *setpwsh-history*
 
+	v1.1.12: Oct 31  2026   * (Miguel Barro) Fix GygWin pipeline redirection.
         v1.1.11: Sep 09  2026   * (Miguel Barro) Fix brackets issue on vim.
         v1.1.10: Feb 27  2026   * (Miguel Barro) Partially revert v1.1.9 fix
         v1.1.9:  Feb 20  2026   * (Miguel Barro) Adapt to vim patch 9.1.2002

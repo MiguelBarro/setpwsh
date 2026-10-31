@@ -11,6 +11,7 @@ setpwsh-!cmd	setpwsh.txt	/*setpwsh-!cmd*
 setpwsh-commands	setpwsh.txt	/*setpwsh-commands*
 setpwsh-contents	setpwsh.txt	/*setpwsh-contents*
 setpwsh-copyright	setpwsh.txt	/*setpwsh-copyright*
+setpwsh-cygwin	setpwsh.txt	/*setpwsh-cygwin*
 setpwsh-env-vars	setpwsh.txt	/*setpwsh-env-vars*
 setpwsh-gvim-win	setpwsh.txt	/*setpwsh-gvim-win*
 setpwsh-history	setpwsh.txt	/*setpwsh-history*
