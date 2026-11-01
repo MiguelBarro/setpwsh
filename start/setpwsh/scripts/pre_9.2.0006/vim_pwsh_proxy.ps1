@@ -98,7 +98,7 @@ try
         {
             # allow multiple expressions (see patch 9.2.0006)
             $cmd = "& { `$ErrorActionPreference = 'Stop'; try { $cmd } catch { exit 1 }" 
-            $cmd += '; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
+            $cmd += '; if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
             $cmd += $redir
         }
 
@@ -132,7 +132,7 @@ try
     }
 
     # propagate error level
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 catch
 {

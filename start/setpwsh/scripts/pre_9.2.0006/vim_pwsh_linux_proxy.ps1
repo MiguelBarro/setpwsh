@@ -110,7 +110,7 @@ try
             # allow multiple expressions (see patch 9.2.0006)
             # redirection prevents error propagation
             $newCmd = "try { & { `$ErrorActionPreference = 'Stop'; $cmd;"
-            $newCmd += 'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
+            $newCmd += 'if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }}'
             $newCmd += $redir
             $newCmd += "} catch [System.IO.DirectoryNotFoundException] { exit 42 } catch { exit 1 }"
         }
@@ -131,7 +131,7 @@ try
     }
 
     # propagate error level
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 catch
 {
