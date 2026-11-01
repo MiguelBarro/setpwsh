@@ -71,7 +71,7 @@ try
     if ($filter -or $is_input -or $is_pipe)
     {
         $preference = '$ErrorActionPreference = "Stop";'
-        $propagate_error = '; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
+        $propagate_error = '; if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
 
         if ($is_pipe)
         {   # stdin capture
@@ -116,7 +116,7 @@ try
     }
 
     # propagate error level
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 catch
 {
