@@ -128,7 +128,7 @@ if has('win32')
         set shellredir=>%s
         set shellquote=
         set shellxquote=(
-        set nostmp
+        set noshelltemp
 
         " Using wsl ssh from netrw (see :help netrw-p14):
         let l:ignore_wsl = 0
@@ -182,6 +182,8 @@ if has('win32')
             set shellslash
         endif
 
+        call s:SaveContext()
+
     endfunction
 
 else
@@ -201,9 +203,62 @@ else
         set shellredir=>%s
         set shellpipe=>%s
 
+        call s:SaveContext()
+
     endfunction
 
 endif
+
+" Save context to restore after session loads
+function s:SaveContext()
+    let s:context = {
+        \   'shell':        &shell,
+        \   'shellcmdflag': &shellcmdflag,
+        \   'shellpipe':    &shellpipe,
+        \   'shellredir':   &shellredir,
+        \   'shellquote':   &shellquote,
+        \   'shellxquote':  &shellxquote,
+        \   'shelltemp':    &shelltemp,
+        \   'shellslash':   &shellslash
+        \   }
+endfunction
+
+" Restore context after session loads
+function s:RestoreContext()
+    if s:context == {}
+        " Empty context, the user has not yet call setpwsh
+        return
+    endif
+
+    if &shellcmdflag !~# '\(g\?vim_pwsh_proxy.ps1\|vim_pwsh_linux_proxy.ps1\)"$'
+        " ignore if the session shell was not set by this plugin
+        return
+    endif
+
+    " restore context if necessary
+    if &shellcmdflag !=# s:context.shellcmdflag
+        let &shell = s:context.shell
+        let &shellcmdflag = s:context.shellcmdflag
+        let &shellpipe = s:context.shellpipe
+        let &shellredir = s:context.shellredir
+        let &shellquote = s:context.shellquote
+        let &shellxquote = s:context.shellxquote
+    endif
+
+    " Check pwsh core is available if enforced
+    if has('win32')
+        if &shell ==# "pwsh" && !executable('pwsh')
+            set shell=powershell
+        endif
+        let &shelltemp = s:context.shelltemp
+        let &shellslash = s:context.shellslash
+    endif
+endfunction
+
+augroup setpwsh
+    autocmd!
+    autocmd SessionLoadPost *.vim call s:RestoreContext()
+augroup END
 
 if g:setpwsh_enabled
     if has('win32')
