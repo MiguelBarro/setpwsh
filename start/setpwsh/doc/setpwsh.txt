@@ -535,6 +535,8 @@ and `Cygwin` formats.
 ==============================================================================
 7. History                                                     *setpwsh-history*
 
+	v1.1.13: Nov 01  2026   * (Miguel Barro) Fix session restoration issues.
+				  Fix `$LASTEXITCODE` issues on some cmdlets.
 	v1.1.12: Oct 31  2026   * (Miguel Barro) Fix GygWin pipeline redirection.
         v1.1.11: Sep 09  2026   * (Miguel Barro) Fix brackets issue on vim.
         v1.1.10: Feb 27  2026   * (Miguel Barro) Partially revert v1.1.9 fix
