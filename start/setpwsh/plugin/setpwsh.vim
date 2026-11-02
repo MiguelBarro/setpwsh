@@ -257,7 +257,7 @@ endfunction
 
 augroup setpwsh
     autocmd!
-    autocmd SessionLoadPost *.vim call s:RestoreContext()
+    autocmd SessionLoadPost * call s:RestoreContext()
 augroup END
 
 if g:setpwsh_enabled
