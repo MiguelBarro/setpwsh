@@ -31,6 +31,7 @@ Copyright: Copyright (C) 2024 Miguel Barro                   *setpwsh-copyright*
 6.  Issues............................................: |setpwsh-issues|
 	WINDOWS NETWORKING ISSUES.....................: |setpwsh-win-networking|
 	CYGWIN REDIRECTION ISSUES.....................: |setpwsh-cygwin|
+	INVOKING THE HOST POWERSHELL FROM WSL2........: |setpwsh-wsl2|
 
 ==============================================================================
 2. Motivation                                               *setpwsh-motivation*
@@ -78,9 +79,15 @@ workaround the above issues.
 ==============================================================================
 3. Installation                                           *setpwsh-installation*
 
-An obvious precondition is having powershell core installed. Though, on windows
-it will work with the builtin powershell desktop if core is not available or
-the user enforces it (see |setpwsh-usage|).
+A prerequisite for this plugin is the availability of PowerShell Core.
+However:
+• On Windows, the built-in Windows PowerShell may be used when PowerShell
+  Core is unavailable or when explicitly requested by the user (see
+  |setpwsh-usage|).
+• On WSL2 distributions, it is often possible to use the Windows version of
+  PowerShell (see |setpwsh-wsl2|). This configuration is generally not
+  recommended because invoking executables from the distribution is less
+  straightforward.
 
 In order to install powershell core (pwsh) I advise:
 • Windows. Use `winget`: >
@@ -532,8 +539,36 @@ arguments do not understand `Cygwin` paths and require native Windows paths inst
 `Cygwin` provides a dedicated utility: `cygpath` to convert paths between Windows
 and `Cygwin` formats.
 
+INVOKING THE HOST POWERSHELL FROM WSL2				*setpwsh-wsl2*
+
+`Wsl2` distributions can access Windows executables by default. Even if a
+distribution does not have `pwsh` installed, it can still invoke the Windows
+version of PowerShell (`Core` or `Desktop`).
+
+Nevertheless, invoking the Windows powershell introduces redirection issues
+that are solved using the `wslpath` utility. This utility provides functionality
+similar to the `cygpath` utility described above (|setpwsh-cygwin|).
+
+Unlike `cygwin`, `Wsl2` runs inside a Hyper-V virtual machine, and PowerShell
+cannot invoke Linux executables directly. Instead, `wsl.exe` must be used,
+specifying the target distribution through the `$Env:WSL_DISTRO_NAME`
+environment variable. For example, to invoke `wslpath`: >
+
+    :!wsl -d $Env:WSL_DISTRO_NAME wslpath -w /tmp
+    \\wsl.localhost\ubuntu\tmp
+
+Note that Windows PowerShell defines aliases that shadow common Unix commands
+such as `cat` and `ls`. Use `wsl.exe`, as shown above, to invoke the actual
+executables provided by the distribution. >
+
+    :!wsl -d $Env:WSL_DISTRO_NAME cat /etc/lsb-release
+    DISTRIB_ID=Ubuntu
+    DISTRIB_RELEASE=24.04
+    DISTRIB_CODENAME=noble
+    DISTRIB_DESCRIPTION="Ubuntu 24.04.3 LTS"
+
 ==============================================================================
-7. History                                                     *setpwsh-history*
+7. history                                                     *setpwsh-history*
 
 	v1.1.13: Nov 01  2026   * (Miguel Barro) Fix session restoration issues.
 				  Fix `$LASTEXITCODE` issues on some cmdlets.

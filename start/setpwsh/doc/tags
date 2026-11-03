@@ -25,4 +25,5 @@ setpwsh-ssh	setpwsh.txt	/*setpwsh-ssh*
 setpwsh-usage	setpwsh.txt	/*setpwsh-usage*
 setpwsh-viewer	setpwsh.txt	/*setpwsh-viewer*
 setpwsh-win-networking	setpwsh.txt	/*setpwsh-win-networking*
+setpwsh-wsl2	setpwsh.txt	/*setpwsh-wsl2*
 setpwsh.txt	setpwsh.txt	/*setpwsh.txt*
