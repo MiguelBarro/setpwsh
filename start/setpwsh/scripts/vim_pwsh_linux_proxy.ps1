@@ -165,11 +165,24 @@ catch
         }
     }
 
-    # It may be a cygwin path, try to convert it to windows path
-    if (-not ($cygpath = gcm cygpath -ErrorAction SilentlyContinue))
+    # Search a tool to turn into a windows path
+    if ($pathtool -eq $null)
     {
-        "Invalid path: $missingPath. CygPath is not available as fallback."
-        exit 43
+        if (gcm cygpath -ErrorAction SilentlyContinue)
+        { # Try CygWin first
+            $pathtool = "cygpath"
+            $pathtoolargs = @("-w")
+        }
+        elseif (gcm wsl -ErrorAction SilentlyContinue)
+        { # Then try WSL
+            $pathtool = "wsl -d $Env:WSL_DISTRO_NAME wslpath"
+            $pathtoolargs = "-d $Env:WSL_DISTRO_NAME wslpath -w" -split ' '
+        }
+        else
+        { # Despair
+            "Invalid path: $missingPath. CygPath or WSL2 are not available as fallback."
+            exit 43
+        }
     }
 
     # powershell may have modified the path, retrieve original
@@ -182,8 +195,8 @@ catch
     }
     $originalPath = $matches['originalPath']
 
-    # Use cygpath to provide windows path
-    $path = & $cygpath.source -w $originalPath
+    # Use $pathtool to provide windows path
+    $path = & $pathtool @pathtoolargs $originalPath
 
     # Replace the missing path in the command line
     $fix = $cmdline -replace [regex]::Escape($originalPath), "'$path'"

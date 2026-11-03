@@ -5,23 +5,12 @@ if exists('g:loaded_setpwsh') || &cp
   finish
 endif
 
-let g:loaded_setpwsh = '1.1.13' " version number
+let g:loaded_setpwsh = '1.1.14' " version number
 
-" dummy version replaced by the actual ones if possible
+" dummy version replaced by the actual ones later
 command -nargs=* SetPwsh
-
-" Check if powershell is present
-if !executable('pwsh')
-    if has('win32')
-        " fallback to desktop version (always available)
-        let g:setpwsh_shell = "powershell"
-    else
-        if exists('g:setpwsh_enabled') && g:setpwsh_enabled
-            echomsg "setpwsh plugin: pwsh is not available in the system"
-            finish
-        endif
-    endif
-endif
+" restore backup shell config if available
+command UndoPwsh call s:BackupRestore()
 
 let s:save_cpo = &cpo
 set cpo&vim
@@ -36,16 +25,37 @@ set cpo&vim
 " $setpwsh_encoding        -> decides powershell binary encoding for input and output pipes. Defaults utf8.
 "                             Possible values: ascii, utf7, utf8, unicode, uft32
 
-if has('win32')
-    if !exists('g:setpwsh_shell') || g:setpwsh_shell !=? "powershell"
-        let g:setpwsh_shell = "pwsh"
-    endif
-else
-    let g:setpwsh_shell = "pwsh"
-endif
-
 if !exists('g:setpwsh_enabled')
     let g:setpwsh_enabled = 0
+endif
+
+if !exists('g:setpwsh_shell')
+    if executable('pwsh')
+        let g:setpwsh_shell = "pwsh"
+    elseif has('win32')
+        " fallback to desktop version (always available)
+        let g:setpwsh_shell = "powershell"
+    elseif executable('wslpath')
+        " wsl2 fallback to host powershell (if available)
+        if executable('pwsh.exe')
+            let g:setpwsh_shell = "pwsh.exe"
+        elseif executable('powershell.exe')
+            let g:setpwsh_shell = "powershell.exe"
+        else " wsl2 is not set up to access host binaries
+            let g:setpwsh_shell = "None"
+        endif
+        " propagate the distro for script benefit
+        if exists('$WSLENV')
+            if split($WSLENV, '\zs')[-1] != ':'
+                let $WSLENV .= ':'
+            endif
+            let $WSLENV .= "WSL_DISTRO_NAME:"
+        else
+            let $WSLENV = "WSL_DISTRO_NAME:"
+        endif
+    else
+        let g:setpwsh_shell = "None"
+    endif
 endif
 
 if !exists('g:setpwsh_ftp_from_wsl')
@@ -109,11 +119,9 @@ if has('win32')
             endif
         endif
 
-        if executable('pwsh')
-            set shell=pwsh
-        else
-            set shell=powershell
-        endif
+        call s:ShellBackup()
+
+        let &shell = g:setpwsh_shell
 
         if has('gui_running')
             let &shellcmdflag='-NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "'
@@ -190,12 +198,14 @@ else
 
     function s:SetPwsh(...) abort
 
-        if !executable('pwsh')
+        if g:setpwsh_shell ==? "None"
             echomsg "setpwsh plugin: pwsh is not available in the system"
             return
+        else
+            call s:ShellBackup()
+            let &shell = g:setpwsh_shell
         endif
 
-        set shell=pwsh
         let &shellcmdflag='-NoLogo -NonInteractive -NoProfile -ExecutionPolicy Bypass -File '
             \   . s:script_dir . 'vim_pwsh_linux_proxy.ps1'
         set shellquote=
@@ -208,6 +218,49 @@ else
     endfunction
 
 endif
+
+" Backup origina shell config
+function s:ShellBackup()
+    if &shellcmdflag =~# '\(g\?vim_pwsh\|vim_pwsh_linux\)_proxy\.ps1'
+        " Only save not SetPwsh shell configs
+        return
+    endif
+
+    let s:backup = {
+        \   'shell':        &shell,
+        \   'shellcmdflag': &shellcmdflag,
+        \   'shellpipe':    &shellpipe,
+        \   'shellredir':   &shellredir,
+        \   'shellquote':   &shellquote,
+        \   'shellxquote':  &shellxquote,
+        \   'shelltemp':    &shelltemp,
+        \   'shellslash':   &shellslash
+        \   }
+endfunction
+
+" Restore original shell config
+function s:BackupRestore()
+    if s:backup == {}
+        " Empty backup, the user has not yet call setpwsh
+        return
+    endif
+
+    let &shell = s:backup.shell
+    let &shellcmdflag = s:backup.shellcmdflag
+    let &shellpipe = s:backup.shellpipe
+    let &shellredir = s:backup.shellredir
+    let &shellquote = s:backup.shellquote
+    let &shellxquote = s:backup.shellxquote
+
+    " Check pwsh core is available if enforced
+    if has('win32')
+        if &shell ==# "pwsh" && !executable('pwsh')
+            set shell=powershell
+        endif
+        let &shelltemp = s:backup.shelltemp
+        let &shellslash = s:backup.shellslash
+    endif
+endfunction
 
 " Save context to restore after session loads
 function s:SaveContext()
@@ -230,7 +283,7 @@ function s:RestoreContext()
         return
     endif
 
-    if &shellcmdflag !~# '\(g\?vim_pwsh_proxy.ps1\|vim_pwsh_linux_proxy.ps1\)"$'
+    if &shellcmdflag !~# '\(g\?vim_pwsh\|vim_pwsh_linux\)_proxy\.ps1'
         " ignore if the session shell was not set by this plugin
         return
     endif

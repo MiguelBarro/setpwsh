@@ -1,5 +1,6 @@
 $setpwsh_encoding	setpwsh.txt	/*$setpwsh_encoding*
 :SetPwsh	setpwsh.txt	/*:SetPwsh*
+:UndoPwsh	setpwsh.txt	/*:UndoPwsh*
 g:setpwsh_enable_test	setpwsh.txt	/*g:setpwsh_enable_test*
 g:setpwsh_enabled	setpwsh.txt	/*g:setpwsh_enabled*
 g:setpwsh_ftp_from_wsl	setpwsh.txt	/*g:setpwsh_ftp_from_wsl*
@@ -25,4 +26,5 @@ setpwsh-ssh	setpwsh.txt	/*setpwsh-ssh*
 setpwsh-usage	setpwsh.txt	/*setpwsh-usage*
 setpwsh-viewer	setpwsh.txt	/*setpwsh-viewer*
 setpwsh-win-networking	setpwsh.txt	/*setpwsh-win-networking*
+setpwsh-wsl2	setpwsh.txt	/*setpwsh-wsl2*
 setpwsh.txt	setpwsh.txt	/*setpwsh.txt*
