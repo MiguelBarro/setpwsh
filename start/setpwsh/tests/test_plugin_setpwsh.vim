@@ -540,6 +540,33 @@ if executable('pwsh')
         call s:netrw_tests()
     endfunc
 
+    func Test_setpwsh_undo()
+        " Keep the original shell config
+        let s:config = {
+            \   'shell':        &shell,
+            \   'shellcmdflag': &shellcmdflag,
+            \   'shellpipe':    &shellpipe,
+            \   'shellredir':   &shellredir,
+            \   'shellquote':   &shellquote,
+            \   'shellxquote':  &shellxquote,
+            \   'shelltemp':    &shelltemp,
+            \   'shellslash':   &shellslash
+            \   }
+
+        " Modify the shell to pwsh
+        call s:set_pwsh()
+        " Call several times
+        SetPwsh
+        SetPwsh
+
+        " Undo the shell modification
+        UndoPwsh
+
+        for [key, value] in items(s:config)
+            call assert_equal(value, eval($"&{key}"), $"UndoPwsh failed for {key}")
+        endfor
+    endfunc
+
 endif " pwsh
 
 " Check netrw ssh with default shell
