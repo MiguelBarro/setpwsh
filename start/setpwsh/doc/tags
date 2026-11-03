@@ -1,5 +1,6 @@
 $setpwsh_encoding	setpwsh.txt	/*$setpwsh_encoding*
 :SetPwsh	setpwsh.txt	/*:SetPwsh*
+:UndoPwsh	setpwsh.txt	/*:UndoPwsh*
 g:setpwsh_enable_test	setpwsh.txt	/*g:setpwsh_enable_test*
 g:setpwsh_enabled	setpwsh.txt	/*g:setpwsh_enabled*
 g:setpwsh_ftp_from_wsl	setpwsh.txt	/*g:setpwsh_ftp_from_wsl*

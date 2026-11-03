@@ -7,8 +7,10 @@ endif
 
 let g:loaded_setpwsh = '1.1.13' " version number
 
-" dummy version replaced by the actual ones if possible
+" dummy version replaced by the actual ones later
 command -nargs=* SetPwsh
+" restore backup shell config if available
+command UndoPwsh call s:BackupRestore()
 
 let s:save_cpo = &cpo
 set cpo&vim
@@ -117,6 +119,8 @@ if has('win32')
             endif
         endif
 
+        call s:ShellBackup()
+
         let &shell = g:setpwsh_shell
 
         if has('gui_running')
@@ -198,6 +202,7 @@ else
             echomsg "setpwsh plugin: pwsh is not available in the system"
             return
         else
+            call s:ShellBackup()
             let &shell = g:setpwsh_shell
         endif
 
@@ -213,6 +218,49 @@ else
     endfunction
 
 endif
+
+" Backup origina shell config
+function s:ShellBackup()
+    if &shellcmdflag =~# '\(g\?vim_pwsh\|vim_pwsh_linux\)_proxy\.ps1'
+        " Only save not SetPwsh shell configs
+        return
+    endif
+
+    let s:backup = {
+        \   'shell':        &shell,
+        \   'shellcmdflag': &shellcmdflag,
+        \   'shellpipe':    &shellpipe,
+        \   'shellredir':   &shellredir,
+        \   'shellquote':   &shellquote,
+        \   'shellxquote':  &shellxquote,
+        \   'shelltemp':    &shelltemp,
+        \   'shellslash':   &shellslash
+        \   }
+endfunction
+
+" Restore original shell config
+function s:BackupRestore()
+    if s:backup == {}
+        " Empty backup, the user has not yet call setpwsh
+        return
+    endif
+
+    let &shell = s:backup.shell
+    let &shellcmdflag = s:backup.shellcmdflag
+    let &shellpipe = s:backup.shellpipe
+    let &shellredir = s:backup.shellredir
+    let &shellquote = s:backup.shellquote
+    let &shellxquote = s:backup.shellxquote
+
+    " Check pwsh core is available if enforced
+    if has('win32')
+        if &shell ==# "pwsh" && !executable('pwsh')
+            set shell=powershell
+        endif
+        let &shelltemp = s:backup.shelltemp
+        let &shellslash = s:backup.shellslash
+    endif
+endfunction
 
 " Save context to restore after session loads
 function s:SaveContext()
@@ -235,7 +283,7 @@ function s:RestoreContext()
         return
     endif
 
-    if &shellcmdflag !~# '\(g\?vim_pwsh_proxy.ps1\|vim_pwsh_linux_proxy.ps1\)"$'
+    if &shellcmdflag !~# '\(g\?vim_pwsh\|vim_pwsh_linux\)_proxy\.ps1'
         " ignore if the session shell was not set by this plugin
         return
     endif

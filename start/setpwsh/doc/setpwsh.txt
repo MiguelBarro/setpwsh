@@ -176,8 +176,7 @@ ENVIRONMENT VARIABLES                                       *setpwsh-env-vars*
 
 COMMANDS                                           *setpwsh-commands* *:SetPwsh*
 
-There is only a single command: >
-
+>
     :SetPwsh [Desktop | NoViewer | FtpFromWsl | SshFromWsl]
 
 This command will modify |'shell'| and related options to use the powershell.
@@ -190,6 +189,12 @@ It admits the following argument flags that are only meaningful in windows:
 • NoViewer    Keeps vim default document viewer.
 • FtpFromWsl  Sets up netrw global options to rig wsl ftp.
 • SshFromWsl  Sets up netrw global options to rig wsl ssh & scp.
+
+                                                                      *:UndoPwsh*
+>
+    :UndoPwsh
+
+This command restores the shell options to their state prior to the |:SetPwsh| call.
 
 BANG COMMANDS                                                     *setpwsh-!cmd*
 
