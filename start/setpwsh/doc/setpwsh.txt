@@ -575,6 +575,8 @@ executables provided by the distribution. >
 ==============================================================================
 7. history                                                     *setpwsh-history*
 
+	v1.1.14: Nov 03  2026   * (Miguel Barro) Fix WSL2 pipeline redirection.
+				  Introduced UndoPwsh command.
 	v1.1.13: Nov 01  2026   * (Miguel Barro) Fix session restoration issues.
 				  Fix `$LASTEXITCODE` issues on some cmdlets.
 	v1.1.12: Oct 31  2026   * (Miguel Barro) Fix GygWin pipeline redirection.
