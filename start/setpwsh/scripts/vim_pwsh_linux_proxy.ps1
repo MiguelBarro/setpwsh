@@ -175,7 +175,7 @@ catch
         }
         elseif (gcm wsl -ErrorAction SilentlyContinue)
         { # Then try WSL
-            $pathtool = "wsl -d $Env:WSL_DISTRO_NAME wslpath"
+            $pathtool = "wsl"
             $pathtoolargs = "-d $Env:WSL_DISTRO_NAME wslpath -w" -split ' '
         }
         else
